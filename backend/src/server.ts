@@ -8,9 +8,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const filePath = path.join(process.cwd(), "src", "files", "read.txt");
-const data = fs.readFileSync(filePath, "utf8");
-console.log(data);
+// const filePath = path.join(process.cwd(), "src", "files", "read.txt");
+// const data = fs.readFileSync(filePath, "utf8");
+// console.log(data);
 
 app.get("/", (req, res) => {
   res.json({
@@ -20,6 +20,9 @@ app.get("/", (req, res) => {
 
 app.post("/sendForm", (req, res) => {
   console.log(req.body);
+
+  const filePath = path.join(process.cwd(), "src", "files", "userData.json");
+
   res.json({
     success: true,
   });
