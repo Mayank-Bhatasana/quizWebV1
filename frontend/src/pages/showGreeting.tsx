@@ -6,8 +6,7 @@ export function ShowGreet() {
 
   useEffect(() => {
     async function fetchGreet() {
-      const response = await getGreet();
-      const data = await response.json();
+      const data = await getGreet();
       setMessage(data.message);
     }
 

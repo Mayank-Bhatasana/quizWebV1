@@ -3,7 +3,7 @@ export default function Footer() {
     <footer className="border-t border-line bg-white">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-2 md:grid-cols-4 sm:px-6">
         <div className="sm:col-span-2">
-          <a href="/" className="text-xl font-bold text-ink">
+          <a href="/frontend/public" className="text-xl font-bold text-ink">
             QuizHub
           </a>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted">

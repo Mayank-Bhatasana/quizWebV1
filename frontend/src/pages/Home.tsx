@@ -1,20 +1,26 @@
-import Form from "./Form.tsx";
-import Footer from "./Footer.tsx";
+import { Link } from "react-router-dom";
 
 const productFeatures = [
   {
     title: "Live quizzes",
     desc: "Run timed or self-paced quizzes in sessions.",
+    img: "src/assets/liveImg.png",
   },
   {
     title: "Share a link",
     desc: "Participants join instantly—no app download.",
+    img: "src/assets/shareImg.png",
   },
   {
     title: "Leaderboards",
     desc: "See rankings and scores as answers come in.",
+    img: "src/assets/leaderBoardImg.png",
   },
-  { title: "Analytics", desc: "Review performance and question insights." },
+  {
+    title: "Analytics",
+    desc: "Review performance and question insights.",
+    img: "src/assets/analyticsImg.png",
+  },
 ];
 
 const benefits = [
@@ -53,7 +59,6 @@ const testimonials = [
 export default function Home() {
   return (
     <>
-      {/* Hero — Slido-style centered headline + product preview */}
       <section className="bg-white pt-12 pb-16 md:pt-16 md:pb-20">
         <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
           <h1 className="mx-auto max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-ink md:text-5xl lg:text-[3.25rem]">
@@ -65,12 +70,12 @@ export default function Home() {
             training a team, or hosting an event.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <a
-              href="#signup"
+            <Link
+              to="/login"
               className="w-full rounded-full bg-brand-600 px-8 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 sm:w-auto"
             >
               Sign up free
-            </a>
+            </Link>
             <a
               href="#features"
               className="w-full rounded-full border border-line bg-white px-8 py-3 text-sm font-semibold text-ink transition hover:bg-surface-soft sm:w-auto"
@@ -120,7 +125,11 @@ export default function Home() {
                 className="rounded-2xl border border-line bg-white p-6 text-center transition hover:border-brand-200 hover:shadow-md hover:shadow-brand-600/5"
               >
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
-                  <span className="text-lg font-bold">✓</span>
+                  {f.img ? (
+                    <img className="text-lg font-bold" src={f.img} />
+                  ) : (
+                    <span className="text-lg font-bold">✓</span>
+                  )}
                 </div>
                 <h3 className="mt-4 font-bold text-ink">{f.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted">
@@ -199,7 +208,7 @@ export default function Home() {
             and review results at no cost.
           </p>
           <a
-            href="#signup"
+            href="/login"
             className="mt-6 inline-flex rounded-full bg-brand-600 px-8 py-3 text-sm font-semibold text-white hover:bg-brand-700"
           >
             Create free account
@@ -213,33 +222,15 @@ export default function Home() {
           <h2 className="text-2xl font-extrabold text-white md:text-3xl">
             Make your sessions more interactive with QuizHub
           </h2>
-          <a
-            href="#signup"
+          <Link
+            to="/login"
             className="mt-8 inline-flex rounded-full bg-white px-8 py-3 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
           >
             Sign up free
-          </a>
+          </Link>
         </div>
       </section>
 
-      {/* Sign up */}
-      {/*<section id="signup" className="scroll-mt-24 py-16 md:py-24">*/}
-      {/*  <div className="mx-auto max-w-6xl px-4 sm:px-6">*/}
-      {/*    <div className="mx-auto max-w-xl text-center">*/}
-      {/*      <h2 className="text-3xl font-extrabold text-ink">*/}
-      {/*        Create your account*/}
-      {/*      </h2>*/}
-      {/*      <p className="mt-3 text-muted">*/}
-      {/*        Join QuizHub in under a minute. No credit card required.*/}
-      {/*      </p>*/}
-      {/*    </div>*/}
-      {/*    <div className="mx-auto mt-10 max-w-md rounded-2xl border border-line bg-white p-8 shadow-sm">*/}
-      {/*      <Form />*/}
-      {/*    </div>*/}
-      {/*  </div>*/}
-      {/*</section>*/}
-
-      <Footer />
     </>
   );
 }

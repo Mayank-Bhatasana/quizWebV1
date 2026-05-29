@@ -1,3 +1,5 @@
+import { apiFetch } from "./api";
+
 export async function getGreet() {
-  return fetch("http://localhost:3000/getGreet")
+  return apiFetch<{ message: string }>("/getGreet");
 }
