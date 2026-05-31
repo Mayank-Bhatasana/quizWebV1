@@ -1,3 +1,4 @@
+import type { ExamQuestion } from "../types/exam";
 import { apiFetch } from "./api";
 
 export type GuestProfile = {
@@ -42,7 +43,10 @@ export type RoomResponse = {
   status: string;
 };
 
-export async function createGuest(input: { displayName: string; avatarUrl?: string | null }) {
+export async function createGuest(input: {
+  displayName: string;
+  avatarUrl?: string | null;
+}) {
   return apiFetch<{ profile: GuestProfile }>("/api/guest", {
     method: "POST",
     body: input,
@@ -71,7 +75,10 @@ export async function createRoom(input: {
   });
 }
 
-export async function joinRoom(code: string, input: { profileId: string; displayName: string }) {
+export async function joinRoom(
+  code: string,
+  input: { profileId: string; displayName: string },
+) {
   return apiFetch<{ roomId: string; participant: RoomParticipant }>(
     `/api/rooms/${code}/join`,
     {
@@ -86,9 +93,17 @@ export async function getAllTheParticipants(code: string) {
     `/api/rooms/${code}/participants`,
     {
       method: "GET",
-    }
-  )
+    },
+  );
+}
 
+export async function getQuestions(code: string) {
+  return apiFetch<{ questions: ExamQuestion[] }>(
+    `/api/room/${code}/questions`,
+    {
+      method: "GET",
+    },
+  );
 }
 
 export async function getRoomDetails(code: string) {
@@ -104,12 +119,15 @@ export async function startRoom(code: string, input: { profileId: string }) {
   });
 }
 
-export async function submitAnswer(roomId: string, input: {
-  participantId: string;
-  roomQuestionId: string;
-  selectedOptionId?: string;
-  timeTakenSeconds?: number;
-}) {
+export async function submitAnswer(
+  roomId: string,
+  input: {
+    participantId: string;
+    roomQuestionId: string;
+    selectedOptionId?: string;
+    timeTakenSeconds?: number;
+  },
+) {
   return apiFetch<{ answer: unknown }>(`/api/rooms/${roomId}/answer`, {
     method: "POST",
     body: input,
@@ -117,7 +135,7 @@ export async function submitAnswer(roomId: string, input: {
 }
 
 export async function getScoreboard(roomId: string) {
-  return apiFetch<{ scoreboard: { participantId: string; displayName: string; score: number }[] }>(
-    `/api/rooms/${roomId}/scoreboard`,
-  );
+  return apiFetch<{
+    scoreboard: { participantId: string; displayName: string; score: number }[];
+  }>(`/api/rooms/${roomId}/scoreboard`);
 }

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { dummyExamQuestions } from "../../data/dummyExamQuestions";
 import ExamPlayer from "./components/ExamPlayer";
 import type { QuestionAnswer, QuestionPhase } from "../../types/exam";
 import { QUESTION_TIME_SECONDS } from "../../types/exam";
+import { useGetQuestions } from "../../query/queries";
 
 function codeFromParam(input: string | undefined) {
   return (input ?? "").trim().replace(/\s+/g, "").toUpperCase() || "DEMO";
@@ -12,7 +12,14 @@ function codeFromParam(input: string | undefined) {
 export default function ShowTheExam() {
   const params = useParams();
   const roomCode = codeFromParam(params.code);
-  const questions = dummyExamQuestions;
+  const {
+    data,
+    isLoading: isLoadingQuestions,
+    isError: isQuestionsError,
+    error: questionError,
+  } = useGetQuestions(roomCode);
+
+  const questions = useMemo(() => data?.questions ?? [], [data?.questions]);
   const totalQuestions = questions.length;
   const maxPoints = useMemo(
     () => questions.reduce((sum, q) => sum + q.points, 0),
@@ -26,7 +33,9 @@ export default function ShowTheExam() {
 
   const currentQuestion = questions[currentIndex];
   const currentQuestionId = currentQuestion?.id;
-  const currentAnswer = currentQuestionId ? answers[currentQuestionId] : undefined;
+  const currentAnswer = currentQuestionId
+    ? answers[currentQuestionId]
+    : undefined;
   const phase: QuestionPhase = currentAnswer ? "revealed" : "answering";
   const selectedOptionId = currentAnswer?.selectedOptionId ?? null;
 
@@ -34,7 +43,9 @@ export default function ShowTheExam() {
     return questions.reduce((sum, question) => {
       const answer = answers[question.id];
       if (!answer?.selectedOptionId) return sum;
-      const selected = question.options.find((o) => o.id === answer.selectedOptionId);
+      const selected = question.options.find(
+        (o) => o.id === answer.selectedOptionId,
+      );
       return selected?.isCorrect ? sum + question.points : sum;
     }, 0);
   }, [answers, questions]);
@@ -108,13 +119,33 @@ export default function ShowTheExam() {
 
   function handleComplete() {
     //TODO: complete this 
+  }
 
+  if (isLoadingQuestions) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-sm font-semibold text-muted">Loading questions...</p>
+      </div>
+    );
+  }
+
+  if (isQuestionsError || !data?.questions) {
+    console.error("Error loading questions:", questionError);
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-sm font-semibold text-muted">
+          There was an error loading questions.
+        </p>
+      </div>
+    );
   }
 
   if (!currentQuestion) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm font-semibold text-muted">No questions available.</p>
+        <p className="text-sm font-semibold text-muted">
+          No questions available.
+        </p>
       </div>
     );
   }
@@ -132,7 +163,9 @@ export default function ShowTheExam() {
       onPrev={goPrev}
       onNext={goNext}
       canGoPrev={currentIndex > 0 && !isComplete}
-      canGoNext={Boolean(currentQuestionId && answers[currentQuestionId]) && !isComplete}
+      canGoNext={
+        Boolean(currentQuestionId && answers[currentQuestionId]) && !isComplete
+      }
       isComplete={isComplete}
       earnedPoints={earnedPoints}
       maxPoints={maxPoints}

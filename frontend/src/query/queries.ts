@@ -5,6 +5,7 @@ import {
   createQuestion,
   createRoom,
   getAllTheParticipants,
+  getQuestions,
   getRoomDetails,
   getScoreboard,
   joinRoom,
@@ -49,6 +50,16 @@ export function useGetAllParticipants(code: string) {
     queryKey: queryKeys.roomParticipants(code),
     queryFn: () => getAllTheParticipants(code),
     enabled: Boolean(code),
+  });
+}
+
+export function useGetQuestions(code: string) {
+  return useQuery({
+    queryKey: queryKeys.roomQuestions(code),
+    queryFn: () => getQuestions(code),
+    enabled: Boolean(code),
+    retry: 0,
+    refetchOnWindowFocus: false,
   });
 }
 

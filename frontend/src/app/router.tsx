@@ -14,6 +14,7 @@ import CreateSession from "../pages/dashboard/CreateSession";
 import DashboardAnalytics from "../pages/dashboard/Analytics";
 import DashboardProfile from "../pages/dashboard/Profile";
 import ShowTheExam from "../pages/exam/ShowTheExam";
+import ShowExamLeaderBoard from "../pages/exam/ShowExamLeaderBoard";
 
 export const router = createBrowserRouter([
   {
@@ -43,6 +44,10 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <ShowTheExam />
+      },
+      {
+        path: "leaderboard",
+        element: <ShowExamLeaderBoard />
       }
     ]
   },

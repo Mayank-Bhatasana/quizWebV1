@@ -467,6 +467,51 @@ app.post("/api/rooms/:code/start", async (req, res) => {
     },
   });
 });
+
+/**
+ * GET /api/room/:code/questions
+ * Returns ordered room questions with options.
+ */
+app.get("/api/room/:code/questions", async (req, res) => {
+  const { code } = req.params;
+
+  const room = await prisma.quizRoom.findUnique({
+    where: { code },
+    include: {
+      questions: {
+        orderBy: { orderIndex: "asc" },
+        include: {
+          question: {
+            include: {
+              options: {
+                orderBy: { sortOrder: "asc" },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!room) {
+    return res.status(404).json({ error: "Room not found" });
+  }
+
+  const questions = room.questions.map((roomQuestion) => ({
+    id: roomQuestion.question.id,
+    text: roomQuestion.question.text,
+    points: roomQuestion.points,
+    explanation: roomQuestion.question.explanation ?? undefined,
+    options: roomQuestion.question.options.map((option) => ({
+      id: option.id,
+      text: option.text,
+      isCorrect: option.isCorrect,
+    })),
+  }));
+
+  return res.json({ questions });
+});
+
 /**
  * POST /api/rooms/:roomId/answer
  * Submits an answer for a room question.
