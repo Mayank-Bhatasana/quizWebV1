@@ -1,17 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import ExamPlayer from "./components/ExamPlayer";
 import type { QuestionAnswer, QuestionPhase } from "../../types/exam";
 import { QUESTION_TIME_SECONDS } from "../../types/exam";
-import { useGetQuestions } from "../../query/queries";
+import { useGetAllParticipants, useGetQuestions, useRoomDetails } from "../../query/queries";
+import { getTempUser } from "../../utils/tempUser";
 
 function codeFromParam(input: string | undefined) {
   return (input ?? "").trim().replace(/\s+/g, "").toUpperCase() || "DEMO";
 }
 
+function handleComplete() {
+  // TODO: complete this
+}
+
 export default function ShowTheExam() {
   const params = useParams();
+  const navigate = useNavigate();
   const roomCode = codeFromParam(params.code);
+  const tempUser = getTempUser();
+  const tempProfileId = tempUser?.profileId;
+  const { data: roomDetails, isLoading: isLoadingRoomDetails } = useRoomDetails(roomCode);
+  const { data: participantsData, isLoading: isLoadingParticipants } = useGetAllParticipants(roomCode);
   const {
     data,
     isLoading: isLoadingQuestions,
@@ -19,12 +29,26 @@ export default function ShowTheExam() {
     error: questionError,
   } = useGetQuestions(roomCode);
 
-  const questions = useMemo(() => data?.questions ?? [], [data?.questions]);
-  const totalQuestions = questions.length;
-  const maxPoints = useMemo(
-    () => questions.reduce((sum, q) => sum + q.points, 0),
-    [questions],
+  const questions = data?.questions ?? [];
+  const myParticipant = (participantsData?.participants ?? []).find(
+    (participant) => participant.profileId === tempProfileId,
   );
+
+  useEffect(() => {
+    if (!roomDetails?.room) return;
+
+    if (roomDetails.room.status === "LOBBY") {
+      navigate(`/dashboard/session/${roomCode}`, { replace: true });
+      return;
+    }
+
+    if (myParticipant?.isHost || !myParticipant) {
+      navigate(`/room/${roomCode}/join/leaderboard`, { replace: true });
+    }
+  }, [roomDetails?.room, myParticipant, navigate, roomCode]);
+
+  const totalQuestions = questions.length;
+  const maxPoints = questions.reduce((sum, q) => sum + q.points, 0);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>({});
@@ -39,37 +63,37 @@ export default function ShowTheExam() {
   const phase: QuestionPhase = currentAnswer ? "revealed" : "answering";
   const selectedOptionId = currentAnswer?.selectedOptionId ?? null;
 
-  const earnedPoints = useMemo(() => {
-    return questions.reduce((sum, question) => {
-      const answer = answers[question.id];
-      if (!answer?.selectedOptionId) return sum;
-      const selected = question.options.find(
-        (o) => o.id === answer.selectedOptionId,
-      );
-      return selected?.isCorrect ? sum + question.points : sum;
-    }, 0);
-  }, [answers, questions]);
+  const earnedPoints = questions.reduce((sum, question) => {
+    const answer = answers[question.id];
+    if (!answer?.selectedOptionId) return sum;
+    const selected = question.options.find(
+      (o) => o.id === answer.selectedOptionId,
+    );
+    return selected?.isCorrect ? sum + question.points : sum;
+  }, 0);
 
-  const revealQuestion = useCallback(
-    (questionId: string, selectedOptionId: string | null) => {
-      setAnswers((prev) => {
-        if (prev[questionId]) return prev;
-        return {
-          ...prev,
-          [questionId]: { selectedOptionId, revealedAt: Date.now() },
-        };
-      });
-    },
-    [],
-  );
+  function revealQuestion(questionId: string, selectedOptionId: string | null) {
+    setAnswers((prev) => {
+      if (prev[questionId]) return prev;
+      return {
+        ...prev,
+        [questionId]: { selectedOptionId, revealedAt: Date.now() },
+      };
+    });
+  }
 
-  const selectOption = useCallback(
-    (optionId: string) => {
-      if (!currentQuestionId || answers[currentQuestionId]) return;
-      revealQuestion(currentQuestionId, optionId);
-    },
-    [answers, currentQuestionId, revealQuestion],
-  );
+  function selectOption(optionId: string) {
+    if (!currentQuestionId || answers[currentQuestionId]) return;
+    revealQuestion(currentQuestionId, optionId);
+  }
+
+  function goToQuestion(nextIndex: number) {
+    const nextQuestion = questions[nextIndex];
+    if (!nextQuestion) return;
+
+    setCurrentIndex(nextIndex);
+    setTimeLeft(answers[nextQuestion.id] ? 0 : QUESTION_TIME_SECONDS);
+  }
 
   useEffect(() => {
     if (isComplete || phase === "revealed") return;
@@ -88,18 +112,7 @@ export default function ShowTheExam() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [timeLeft, phase, isComplete, currentQuestionId, revealQuestion]);
-
-  const goToQuestion = useCallback(
-    (nextIndex: number) => {
-      const nextQuestion = questions[nextIndex];
-      if (!nextQuestion) return;
-
-      setCurrentIndex(nextIndex);
-      setTimeLeft(answers[nextQuestion.id] ? 0 : QUESTION_TIME_SECONDS);
-    },
-    [answers, questions],
-  );
+  }, [timeLeft, phase, isComplete, currentQuestionId, answers, questions]);
 
   function goPrev() {
     if (currentIndex <= 0) return;
@@ -117,14 +130,10 @@ export default function ShowTheExam() {
     goToQuestion(currentIndex + 1);
   }
 
-  function handleComplete() {
-    //TODO: complete this 
-  }
-
-  if (isLoadingQuestions) {
+  if (isLoadingQuestions || isLoadingRoomDetails || isLoadingParticipants) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm font-semibold text-muted">Loading questions...</p>
+        <p className="text-sm font-semibold text-muted">Loading questions…</p>
       </div>
     );
   }

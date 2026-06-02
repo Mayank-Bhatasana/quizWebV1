@@ -4,11 +4,13 @@ import {
   createGuest,
   createQuestion,
   createRoom,
+  getAuthMe,
   getAllTheParticipants,
   getQuestions,
   getRoomDetails,
   getScoreboard,
   joinRoom,
+  logoutUser,
   startRoom,
 } from "../services/quizApi";
 import { queryKeys } from "./queryKeys";
@@ -17,6 +19,20 @@ export function useGreeting() {
   return useQuery({
     queryKey: queryKeys.greet,
     queryFn: getGreet,
+  });
+}
+
+export function useAuthSession() {
+  return useQuery({
+    queryKey: queryKeys.authSession,
+    queryFn: getAuthMe,
+    retry: 0,
+  });
+}
+
+export function useLogout() {
+  return useMutation({
+    mutationFn: logoutUser,
   });
 }
 

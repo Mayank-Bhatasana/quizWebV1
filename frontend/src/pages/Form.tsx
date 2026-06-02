@@ -18,12 +18,16 @@ export default function Form() {
         body: JSON.stringify({ email, password, username, phone }),
       });
 
-      if (!res.ok) throw new Error("Request failed");
-      setStatus("success");
-      setEmail("");
-      setPassword("");
-      setUsername("");
-      setPhone("");
+      if (res.ok) {
+        setStatus("success");
+        setEmail("");
+        setPassword("");
+        setUsername("");
+        setPhone("");
+        return;
+      }
+
+      setStatus("error");
     } catch {
       setStatus("error");
     }

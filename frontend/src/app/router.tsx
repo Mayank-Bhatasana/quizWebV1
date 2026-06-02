@@ -15,6 +15,8 @@ import DashboardAnalytics from "../pages/dashboard/Analytics";
 import DashboardProfile from "../pages/dashboard/Profile";
 import ShowTheExam from "../pages/exam/ShowTheExam";
 import ShowExamLeaderBoard from "../pages/exam/ShowExamLeaderBoard";
+import Login from "../pages/Login";
+import RequireAuth from "../components/auth/RequireAuth";
 
 export const router = createBrowserRouter([
   {
@@ -29,6 +31,10 @@ export const router = createBrowserRouter([
       {
         path: "about",
         element: <About />,
+      },
+      {
+        path: "login",
+        element: <Login />,
       },
       {
         path: "*",
@@ -52,33 +58,38 @@ export const router = createBrowserRouter([
     ]
   },
   {
-    path: "dashboard",
-    element: <DashboardLayout />,
-    errorElement: <RouteError />,
+    element: <RequireAuth />,
     children: [
       {
-        index: true,
-        element: <DashboardHome />,
-      },
-      {
-        path: "session/:code",
-        element: <SessionLobby />,
-      },
-      {
-        path: "analytics",
-        element: <DashboardAnalytics />,
-      },
-      {
-        path: "profile",
-        element: <DashboardProfile />,
-      },
-      {
-        path: "create",
-        element: <CreateSession />,
-      },
-      {
-        path: "*",
-        element: <NotFound />,
+        path: "dashboard",
+        element: <DashboardLayout />,
+        errorElement: <RouteError />,
+        children: [
+          {
+            index: true,
+            element: <DashboardHome />,
+          },
+          {
+            path: "session/:code",
+            element: <SessionLobby />,
+          },
+          {
+            path: "analytics",
+            element: <DashboardAnalytics />,
+          },
+          {
+            path: "profile",
+            element: <DashboardProfile />,
+          },
+          {
+            path: "create",
+            element: <CreateSession />,
+          },
+          {
+            path: "*",
+            element: <NotFound />,
+          },
+        ],
       },
     ],
   },

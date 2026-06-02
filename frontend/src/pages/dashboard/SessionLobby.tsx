@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
 import { useCreateGuest, useGetAllParticipants, useJoinRoom, useRoomDetails, useStartRoom } from "../../query/queries";
@@ -34,12 +34,12 @@ export default function SessionLobby() {
   } = useGetAllParticipants(code);
 
   const tempUser = getTempUser();
-  const myParticipant: LobbyParticipant = useMemo(() => {
-    const name = tempUser?.name?.trim() || "Guest";
-    const avatarEmoji = tempUser?.avatar?.emoji ?? "🧠";
-    const avatarBg = tempUser?.avatar?.bg ?? "bg-slate-200";
-    return { id: tempUser?.id ?? "me", name, avatarEmoji, avatarBg };
-  }, [tempUser]);
+  const myParticipant: LobbyParticipant = {
+    id: tempUser?.id ?? "me",
+    name: tempUser?.name?.trim() || "Guest",
+    avatarEmoji: tempUser?.avatar?.emoji ?? "🧠",
+    avatarBg: tempUser?.avatar?.bg ?? "bg-slate-200",
+  };
 
   const [showEdit, setShowEdit] = useState(false);
   const [name, setName] = useState(myParticipant.name);
@@ -50,8 +50,17 @@ export default function SessionLobby() {
   const participantCount = allParticipants?.participants?.length ?? 0;
   const tempProfileId = tempUser?.profileId;
   const isHost = Boolean(tempProfileId && roomDetails?.room.hostId === tempProfileId);
+  const roomStatus = roomDetails?.room.status;
   const questionCount = roomDetails?.room.questionCount ?? 0;
   const totalSeconds = questionCount * 20;
+
+  useEffect(() => {
+    if (!code || !roomStatus || roomStatus === "LOBBY") return;
+    const destination = isHost
+      ? `/room/${code}/join/leaderboard`
+      : `/room/${code}/join`;
+    navigate(destination, { replace: true });
+  }, [roomStatus, code, isHost, navigate]);
 
   useEffect(() => {
     if (!code) return;
@@ -80,14 +89,17 @@ export default function SessionLobby() {
       }
 
       if (payload.type === "room_started") {
-        navigate(`/room/${code}/join`, { replace: true });
+        const destination = isHost
+          ? `/room/${code}/join/leaderboard`
+          : `/room/${code}/join`;
+        navigate(destination, { replace: true });
       }
     };
 
     return () => {
       socket.close();
     };
-  }, [code, navigate]);
+  }, [code, isHost, navigate]);
 
   function copyCode() {
     navigator.clipboard?.writeText(code);
@@ -130,6 +142,7 @@ export default function SessionLobby() {
 
   useEffect(() => {
     if (!code) return;
+    if (roomStatus && roomStatus !== "LOBBY") return;
 
     let cancelled = false;
 
@@ -144,13 +157,17 @@ export default function SessionLobby() {
       }
 
       try {
-        const guest = await createGuestAsync({
-          displayName: local.name,
-          avatarUrl: local.avatarUrl ?? null,
-        });
-        if (cancelled) return;
+        let profileId = local.profileId;
+        if (!profileId) {
+          const guest = await createGuestAsync({
+            displayName: local.name,
+            avatarUrl: local.avatarUrl ?? null,
+          });
+          if (cancelled) return;
+          profileId = guest.profile.id;
+          updateTempUser({ profileId });
+        }
 
-        const profileId = guest.profile.id;
         const joined = await joinRoomAsync({
           code,
           input: {
@@ -165,6 +182,13 @@ export default function SessionLobby() {
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Failed to join session";
+        if (message.toLowerCase().includes("already started")) {
+          const destination = isHost
+            ? `/room/${code}/join/leaderboard`
+            : `/room/${code}/join`;
+          navigate(destination, { replace: true });
+          return;
+        }
         setError(message);
         setStatus(null);
       }
@@ -175,14 +199,14 @@ export default function SessionLobby() {
     return () => {
       cancelled = true;
     };
-  }, [code, name, createGuestAsync, joinRoomAsync]);
+  }, [code, roomStatus, name, createGuestAsync, joinRoomAsync, isHost, navigate]);
 
   async function handleStartQuiz() {
     if (!code || !tempProfileId) return;
     try {
       await startRoomAsync({ code, profileId: tempProfileId });
       refetchParticipants();
-      navigate(`/room/${code}/join`, { replace: true });
+      navigate(`/room/${code}/join/leaderboard`, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to start quiz";
       setError(message);
@@ -233,6 +257,7 @@ export default function SessionLobby() {
               Code: <span className="font-extrabold">{code}</span>
             </span>
             <button
+              type="button"
               onClick={copyCode}
               className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-soft"
             >
@@ -252,7 +277,7 @@ export default function SessionLobby() {
               Joined
             </p>
             <p className="mt-2 text-2xl font-extrabold text-ink">
-              {isLoadingParticipants ? "..." : participantCount}
+               {isLoadingParticipants ? "…" : participantCount}
             </p>
           </div>
           <div className="rounded-2xl border border-line bg-surface-soft p-5">
@@ -285,21 +310,24 @@ export default function SessionLobby() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
+              type="button"
               onClick={() => refetchParticipants()}
               className="inline-flex rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-soft"
             >
-              {isFetchingParticipants ? "Refreshing..." : "Refresh"}
+              {isFetchingParticipants ? "Refreshing…" : "Refresh"}
             </button>
             {isHost ? (
               <button
+                type="button"
                 onClick={handleStartQuiz}
                 disabled={isStartingRoom}
                 className="inline-flex rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-brand-300"
               >
-                {isStartingRoom ? "Starting..." : "Start quiz"}
+                {isStartingRoom ? "Starting…" : "Start quiz"}
               </button>
             ) : null}
             <button
+              type="button"
               onClick={() => setShowEdit(true)}
               className="inline-flex rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-soft"
             >
@@ -314,7 +342,7 @@ export default function SessionLobby() {
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {isFetchingParticipants ? (
-            <div className="text-sm font-semibold text-muted">Refreshing...</div>
+            <div className="text-sm font-semibold text-muted">Refreshing…</div>
           ) : (
             (allParticipants?.participants ?? []).map((p) => (
               <div
@@ -325,20 +353,20 @@ export default function SessionLobby() {
                   <img
                     src={p.avatarUrl}
                     alt={p.displayName}
-                    className="h-10 w-10 rounded-full object-cover"
+                    className="size-10 rounded-full object-cover"
                   />
                 ) : (
                   <div
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-ink"
-                    aria-hidden
-                  >
+                    className="flex size-10 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-ink"
+                   aria-hidden
+                 >
                     {p.displayName.slice(0, 1).toUpperCase()}
                   </div>
                 )}
                 <div>
                   <p className="text-sm font-semibold text-ink">{p.displayName}</p>
                   <p className="text-xs text-muted">
-                    {p.id === myParticipant.id ? "You" : "Participant"}
+                    {p.profileId === tempProfileId ? "You" : p.isHost ? "Host" : "Participant"}
                   </p>
                 </div>
               </div>
@@ -369,12 +397,14 @@ export default function SessionLobby() {
 
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
+                type="button"
                 onClick={() => setShowEdit(false)}
                 className="rounded-xl border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-soft"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={saveName}
                 className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
               >

@@ -66,7 +66,7 @@ export default function Home() {
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted md:text-xl">
             QuizHub helps you engage participants, capture their answers, and
-            make everyone feel included—whether you&apos;re teaching a class,
+            make everyone feel included, whether you&apos;re teaching a class,
             training a team, or hosting an event.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -124,9 +124,9 @@ export default function Home() {
                 key={f.title}
                 className="rounded-2xl border border-line bg-white p-6 text-center transition hover:border-brand-200 hover:shadow-md hover:shadow-brand-600/5"
               >
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
                   {f.img ? (
-                    <img className="text-lg font-bold" src={f.img} />
+                    <img className="text-lg font-bold" src={f.img} alt={`${f.title} icon`} />
                   ) : (
                     <span className="text-lg font-bold">✓</span>
                   )}

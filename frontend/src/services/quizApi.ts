@@ -13,6 +13,25 @@ export type GuestProfile = {
   updatedAt: string;
 };
 
+export type AuthUser = {
+  id: string;
+  email: string;
+};
+
+export type AuthProfile = {
+  id: string;
+  username: string | null;
+  avatarUrl: string | null;
+  role: string;
+  totalPoints: number;
+  isTemporary: boolean;
+};
+
+export type AuthSession = {
+  user: AuthUser;
+  profile: AuthProfile;
+};
+
 export type ParticipantsProfile = {
   id: string;
   profileId: string;
@@ -50,6 +69,40 @@ export async function createGuest(input: {
   return apiFetch<{ profile: GuestProfile }>("/api/guest", {
     method: "POST",
     body: input,
+  });
+}
+
+export async function registerUser(input: {
+  email: string;
+  password: string;
+  username: string;
+  avatarUrl?: string | null;
+}) {
+  return apiFetch<AuthSession>("/api/auth/register", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function loginUser(input: {
+  email: string;
+  password: string;
+}) {
+  return apiFetch<AuthSession>("/api/auth/login", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function getAuthMe() {
+  return apiFetch<AuthSession>("/api/auth/me", {
+    method: "GET",
+  });
+}
+
+export async function logoutUser() {
+  return apiFetch<{ ok: boolean }>("/api/auth/logout", {
+    method: "POST",
   });
 }
 

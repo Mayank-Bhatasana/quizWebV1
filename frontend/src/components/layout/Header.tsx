@@ -1,7 +1,34 @@
 import { Link } from "react-router-dom";
 import { HashLink } from "react-router-hash-link"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getAuthMe, logoutUser } from "../../services/quizApi";
+import { queryKeys } from "../../query/queryKeys";
+import { clearTempUser } from "../../utils/tempUser";
 
 export default function Header() {
+  const queryClient = useQueryClient();
+  const { data: authSession } = useQuery({
+    queryKey: queryKeys.authSession,
+    queryFn: getAuthMe,
+    retry: 0,
+  });
+  const { mutateAsync: logoutAsync, isPending: isLoggingOut } = useMutation({
+    mutationFn: logoutUser,
+  });
+
+  async function handleLogout() {
+    try {
+      await logoutAsync();
+    } finally {
+      clearTempUser();
+      queryClient.setQueryData(queryKeys.authSession, null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.authSession });
+    }
+  }
+
+  const isLoggedIn = Boolean(authSession?.user?.id);
+  const displayName = authSession?.profile?.username?.trim() || authSession?.user?.email;
+
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-white">
       <div className="border-b border-line bg-surface-soft">
@@ -58,20 +85,36 @@ export default function Header() {
           </Link>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link
-            to="/login"
-            className="hidden text-sm font-semibold text-muted hover:text-ink sm:inline"
-          >
-            Log in
-          </Link>
-          <Link
-            to="/login"
-            className="rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
-          >
-            Sign up free
-          </Link>
-        </div>
+        {isLoggedIn ? (
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm text-muted sm:inline">
+              Logged in as <span className="font-semibold text-ink">{displayName}</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Link
+              to="/login"
+              className="hidden text-sm font-semibold text-muted hover:text-ink sm:inline"
+            >
+              Log in
+            </Link>
+            <Link
+              to="/login"
+              className="rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              Sign up free
+            </Link>
+          </div>
+        )}
       </nav>
     </header>
   );

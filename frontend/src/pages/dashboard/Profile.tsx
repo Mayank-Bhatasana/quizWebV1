@@ -1,26 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import AccountPrompt from "../../components/dashboard/AccountPrompt";
 import { useTempUser } from "../../hooks/useTempUser";
 import { createTempUser, setTempUser } from "../../utils/tempUser";
 
 export default function DashboardProfile() {
   const existing = useTempUser();
-  const [name, setName] = useState(existing?.name ?? "");
+  const [name, setName] = useState("");
+  const effectiveName = name || existing?.name || "";
 
-  useEffect(() => {
-    setName(existing?.name ?? "");
-  }, [existing?.name]);
-
-  const preview = useMemo(() => {
-    const user = existing ?? createTempUser(name || "Guest");
-    return user;
-  }, [existing, name]);
+  const preview = existing ?? createTempUser(effectiveName || "Guest");
 
   function save() {
     const user = existing
-      ? { ...existing, name: name.trim().slice(0, 30) || "Guest" }
-      : createTempUser(name || "Guest");
+      ? { ...existing, name: effectiveName.trim().slice(0, 30) || "Guest" }
+      : createTempUser(effectiveName || "Guest");
     setTempUser(user);
+    setName("");
   }
 
   return (
@@ -52,7 +47,7 @@ export default function DashboardProfile() {
           </label>
           <input
             id="name"
-            value={name}
+            value={effectiveName}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
             className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-brand-300 focus:ring-4 focus:ring-brand-100"
@@ -61,15 +56,18 @@ export default function DashboardProfile() {
 
         <div className="mt-6 flex flex-wrap gap-3">
           <button
+            type="button"
             onClick={save}
             className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
           >
             Save
           </button>
           <button
+            type="button"
             onClick={() => {
-              const user = createTempUser(name || "Guest");
+              const user = createTempUser(effectiveName || "Guest");
               setTempUser(user);
+              setName("");
             }}
             className="rounded-xl border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-soft"
           >
