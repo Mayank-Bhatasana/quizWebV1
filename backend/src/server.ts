@@ -89,9 +89,175 @@ const publishToRoom = (code: string, payload: unknown) => {
   }
 };
 
+const emojiPool = ["🧠", "⚡", "🌟", "🎯", "🧩", "🚀", "🍀", "🔥"];
+const bgPool = [
+  "bg-violet-200",
+  "bg-sky-200",
+  "bg-emerald-200",
+  "bg-orange-200",
+  "bg-pink-200",
+  "bg-indigo-200",
+  "bg-cyan-200",
+  "bg-amber-200",
+  "bg-rose-200",
+  "bg-lime-200",
+  "bg-teal-200",
+];
+
+function getAvatarForName(id: string, name: string) {
+  let hash = 0;
+  const str = id + name;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const emojiIndex = Math.abs(hash) % emojiPool.length;
+  const bgIndex = Math.abs(hash + 1) % bgPool.length;
+  return {
+    emoji: emojiPool[emojiIndex],
+    bg: bgPool[bgIndex],
+  };
+}
+
+async function saveAnswer({
+  roomId,
+  participantId,
+  roomQuestionId,
+  selectedOptionId,
+  timeTakenSeconds,
+}: {
+  roomId: string;
+  participantId: string;
+  roomQuestionId: string;
+  selectedOptionId?: string | null;
+  timeTakenSeconds?: number | null;
+}) {
+  const roomQuestion = await prisma.roomQuestion.findUnique({
+    where: { id: roomQuestionId },
+  });
+  if (!roomQuestion || roomQuestion.roomId !== roomId) {
+    throw new Error("Room question not found");
+  }
+
+  let isCorrect = false;
+  if (selectedOptionId) {
+    const option = await prisma.questionOption.findFirst({
+      where: {
+        id: selectedOptionId,
+        questionId: roomQuestion.questionId,
+      },
+    });
+    if (!option) {
+      throw new Error("Invalid selected option");
+    }
+    isCorrect = option.isCorrect;
+  }
+
+  const answer = await prisma.participantAnswer.upsert({
+    where: {
+      roomQuestionId_participantId: {
+        roomQuestionId,
+        participantId,
+      },
+    },
+    update: {
+      selectedOptionId: selectedOptionId ?? null,
+      isCorrect,
+      timeTakenSeconds: typeof timeTakenSeconds === "number" && Number.isInteger(timeTakenSeconds)
+        ? timeTakenSeconds
+        : null,
+    },
+    create: {
+      roomId,
+      roomQuestionId,
+      participantId,
+      selectedOptionId: selectedOptionId ?? null,
+      isCorrect,
+      timeTakenSeconds: typeof timeTakenSeconds === "number" && Number.isInteger(timeTakenSeconds)
+        ? timeTakenSeconds
+        : null,
+    },
+  });
+
+  return answer;
+}
+
+async function computeLeaderboard(roomId: string) {
+  const participants = await prisma.roomParticipant.findMany({
+    where: { roomId, isHost: false },
+    include: {
+      profile: true,
+      answers: {
+        include: {
+          roomQuestion: true,
+        },
+      },
+    },
+  });
+
+  const totalQuestions = await prisma.roomQuestion.count({
+    where: { roomId },
+  });
+
+  const entries = participants.map((p) => {
+    const correct = p.answers.filter((a) => a.isCorrect).length;
+    const score = p.answers.reduce((sum, a) => sum + (a.isCorrect ? a.roomQuestion.points * 100 : 0), 0);
+    const timeSeconds = p.answers.reduce((sum, a) => sum + (a.timeTakenSeconds ?? 0), 0);
+    const avatarInfo = getAvatarForName(p.profileId, p.displayName);
+
+    return {
+      id: p.profileId,
+      name: p.displayName,
+      avatar: avatarInfo.emoji,
+      avatarBg: avatarInfo.bg,
+      score,
+      correct,
+      total: totalQuestions,
+      timeSeconds,
+    };
+  });
+
+  return entries.sort((a, b) => b.score - a.score || a.timeSeconds - b.timeSeconds);
+}
+
+const dirtyRooms = new Set<string>();
+
+const broadcastLeaderboard = async (roomCode: string) => {
+  try {
+    const room = await prisma.quizRoom.findUnique({
+      where: { code: roomCode.toUpperCase() },
+    });
+    if (!room) return;
+
+    const scoreboard = await computeLeaderboard(room.id);
+
+    publishToRoom(roomCode, {
+      type: "leaderboard_updated",
+      roomId: room.id,
+      scoreboard,
+    });
+  } catch (error) {
+    console.error(`Error broadcasting leaderboard for room ${roomCode}:`, error);
+  }
+};
+
+setInterval(async () => {
+  if (dirtyRooms.size === 0) return;
+
+  const codesToProcess = Array.from(dirtyRooms);
+  dirtyRooms.clear();
+
+  for (const code of codesToProcess) {
+    await broadcastLeaderboard(code);
+  }
+}, 1000);
+
+const markRoomDirty = (roomCode: string) => {
+  dirtyRooms.add(roomCode.trim().toUpperCase());
+};
+
 wss.on("connection", (ws) => {
-  ws.on("message", (raw) => {
-    let payload: unknown;
+  ws.on("message", async (raw) => {
+    let payload: any;
     try {
       payload = JSON.parse(String(raw));
     } catch {
@@ -102,12 +268,33 @@ wss.on("connection", (ws) => {
       return;
     }
 
-    const message = payload as Record<string, unknown>;
-    if (message.type !== "subscribe" || typeof message.code !== "string") {
-      return;
-    }
+    if (payload.type === "subscribe" && typeof payload.code === "string") {
+      subscribeToRoom(payload.code, ws);
+    } else if (payload.type === "submit_answer") {
+      const { code, participantId, roomQuestionId, selectedOptionId, timeTakenSeconds } = payload;
+      if (!code || !participantId || !roomQuestionId) {
+        return;
+      }
 
-    subscribeToRoom(message.code, ws);
+      try {
+        const room = await prisma.quizRoom.findUnique({
+          where: { code: code.toUpperCase() }
+        });
+        if (!room || room.status !== "LIVE") return;
+
+        await saveAnswer({
+          roomId: room.id,
+          participantId,
+          roomQuestionId,
+          selectedOptionId,
+          timeTakenSeconds,
+        });
+
+        markRoomDirty(code);
+      } catch (err) {
+        console.error("WS submit_answer error:", err);
+      }
+    }
   });
 
   ws.on("close", () => {
@@ -846,6 +1033,7 @@ app.get("/api/room/:code/questions", async (req, res) => {
 
   const questions = room.questions.map((roomQuestion) => ({
     id: roomQuestion.question.id,
+    roomQuestionId: roomQuestion.id,
     text: roomQuestion.question.text,
     points: roomQuestion.points,
     explanation: roomQuestion.question.explanation ?? undefined,
@@ -875,54 +1063,27 @@ app.post("/api/rooms/:roomId/answer", async (req, res) => {
       .json({ error: "participantId and roomQuestionId are required" });
   }
 
-  const roomQuestion = await prisma.roomQuestion.findUnique({
-    where: { id: roomQuestionId },
-  });
-  if (!roomQuestion || roomQuestion.roomId !== roomId) {
-    return res.status(404).json({ error: "Room question not found" });
-  }
-
-  let isCorrect = false;
-  if (selectedOptionId) {
-    const option = await prisma.questionOption.findFirst({
-      where: {
-        id: selectedOptionId,
-        questionId: roomQuestion.questionId,
-      },
+  try {
+    const room = await prisma.quizRoom.findUnique({
+      where: { id: roomId },
     });
-    if (!option) {
-      return res.status(400).json({ error: "Invalid selected option" });
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
     }
-    isCorrect = option.isCorrect;
-  }
 
-  const answer = await prisma.participantAnswer.upsert({
-    where: {
-      roomQuestionId_participantId: {
-        roomQuestionId,
-        participantId,
-      },
-    },
-    update: {
-      selectedOptionId: selectedOptionId ?? null,
-      isCorrect,
-      timeTakenSeconds: Number.isInteger(timeTakenSeconds)
-        ? timeTakenSeconds
-        : null,
-    },
-    create: {
+    const answer = await saveAnswer({
       roomId,
-      roomQuestionId,
       participantId,
-      selectedOptionId: selectedOptionId ?? null,
-      isCorrect,
-      timeTakenSeconds: Number.isInteger(timeTakenSeconds)
-        ? timeTakenSeconds
-        : null,
-    },
-  });
+      roomQuestionId,
+      selectedOptionId,
+      timeTakenSeconds,
+    });
 
-  return res.json({ answer });
+    markRoomDirty(room.code);
+    return res.json({ answer });
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message || "Failed to submit answer" });
+  }
 });
 
 /**
@@ -931,37 +1092,13 @@ app.post("/api/rooms/:roomId/answer", async (req, res) => {
  */
 app.get("/api/rooms/:roomId/scoreboard", async (req, res) => {
   const { roomId } = req.params;
-  const answers = await prisma.participantAnswer.findMany({
-    where: { roomId },
-    include: {
-      roomQuestion: true,
-      participant: true,
-    },
-  });
-
-  const scores = new Map<
-    string,
-    { participantId: string; displayName: string; score: number }
-  >();
-  for (const answer of answers) {
-    const participantId = answer.participantId;
-    const entry = scores.get(participantId) ?? {
-      participantId,
-      displayName: answer.participant.displayName,
-      score: 0,
-    };
-
-    if (answer.isCorrect) {
-      entry.score += answer.roomQuestion.points;
-    }
-
-    scores.set(participantId, entry);
+  try {
+    const scoreboard = await computeLeaderboard(roomId);
+    return res.json({ scoreboard });
+  } catch (error: any) {
+    console.error("Scoreboard fetch error:", error);
+    return res.status(500).json({ error: "Failed to load scoreboard" });
   }
-
-  const scoreboard = Array.from(scores.values()).sort(
-    (a, b) => b.score - a.score,
-  );
-  return res.json({ scoreboard });
 });
 
 server.listen(3000, () => {

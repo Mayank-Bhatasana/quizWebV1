@@ -1,5 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
+import { useEffect } from "react";
 import { useTempUser } from "../hooks/useTempUser";
+import { getTempUser, setTempUser, createTempUser } from "../utils/tempUser";
 
 function AvatarChip() {
   const user = useTempUser();
@@ -37,6 +39,14 @@ function AvatarChip() {
 }
 
 export default function DashboardLayout() {
+  useEffect(() => {
+    const existing = getTempUser();
+    if (!existing) {
+      const randomGuestName = `Guest_${Math.floor(1000 + Math.random() * 9000)}`;
+      setTempUser(createTempUser(randomGuestName));
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-20 border-b border-line bg-white">

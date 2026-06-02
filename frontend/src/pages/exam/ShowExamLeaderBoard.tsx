@@ -1,16 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-
-type LeaderboardEntry = {
-  id: string;
-  name: string;
-  avatar: string;
-  avatarBg: string;
-  score: number;
-  correct: number;
-  total: number;
-  timeSeconds: number;
-};
+import { useRoomDetails, useScoreboard } from "../../query/queries";
+import type { LeaderboardEntry } from "../../services/quizApi";
 
 type MotionKind = "overtook" | "overtaken";
 
@@ -19,22 +10,7 @@ type TakeoverBanner = {
   target: string;
 };
 
-const DUMMY_LEADERBOARD: LeaderboardEntry[] = [
-  { id: "1", name: "Priya Sharma", avatar: "🎯", avatarBg: "bg-violet-200", score: 980, correct: 10, total: 10, timeSeconds: 142 },
-  { id: "2", name: "Alex Rivera", avatar: "⚡", avatarBg: "bg-sky-200", score: 940, correct: 9, total: 10, timeSeconds: 156 },
-  { id: "3", name: "Jordan Lee", avatar: "🧠", avatarBg: "bg-emerald-200", score: 910, correct: 9, total: 10, timeSeconds: 168 },
-  { id: "4", name: "Sam Okonkwo", avatar: "🔥", avatarBg: "bg-orange-200", score: 870, correct: 8, total: 10, timeSeconds: 175 },
-  { id: "5", name: "Mia Chen", avatar: "✨", avatarBg: "bg-pink-200", score: 840, correct: 8, total: 10, timeSeconds: 182 },
-  { id: "6", name: "Chris Patel", avatar: "🎮", avatarBg: "bg-indigo-200", score: 810, correct: 8, total: 10, timeSeconds: 190 },
-  { id: "7", name: "Taylor Brooks", avatar: "🚀", avatarBg: "bg-cyan-200", score: 780, correct: 7, total: 10, timeSeconds: 198 },
-  { id: "8", name: "Riley Nguyen", avatar: "📚", avatarBg: "bg-amber-200", score: 750, correct: 7, total: 10, timeSeconds: 205 },
-  { id: "9", name: "Casey Morgan", avatar: "🎨", avatarBg: "bg-rose-200", score: 720, correct: 7, total: 10, timeSeconds: 214 },
-  { id: "10", name: "Jamie Wright", avatar: "🌟", avatarBg: "bg-lime-200", score: 690, correct: 6, total: 10, timeSeconds: 221 },
-  { id: "11", name: "Dana Kim", avatar: "💡", avatarBg: "bg-teal-200", score: 660, correct: 6, total: 10, timeSeconds: 230 },
-];
-
 const MAX_VISIBLE = 10;
-const LIVE_TICK_MS = 3800;
 
 function formatTime(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -100,36 +76,7 @@ function playFlipAnimations(root: HTMLElement | null, firstRects: Map<string, DO
   });
 }
 
-function simulateTakeover(pool: LeaderboardEntry[]) {
-  const visible = sortEntries(pool).slice(0, MAX_VISIBLE);
-  if (visible.length < 2) return null;
 
-  const climbFromIndex = Math.floor(Math.random() * Math.min(6, visible.length - 1)) + 1;
-  const climber = visible[climbFromIndex];
-  const target = visible[climbFromIndex - 1];
-  const scoreBump = 8 + Math.floor(Math.random() * 28);
-
-  const nextPool = pool.map((entry) => {
-    if (entry.id !== climber.id) return entry;
-
-    const nextCorrect =
-      entry.correct < entry.total && Math.random() > 0.35 ? entry.correct + 1 : entry.correct;
-
-    return {
-      ...entry,
-      score: target.score + scoreBump,
-      correct: nextCorrect,
-      timeSeconds: Math.max(90, entry.timeSeconds - Math.floor(Math.random() * 8)),
-    };
-  });
-
-  return {
-    nextPool,
-    overtookId: climber.id,
-    overtakenId: target.id,
-    banner: { climber: climber.name, target: target.name },
-  };
-}
 
 function CrownIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -304,11 +251,39 @@ function LeaderboardRow({
   );
 }
 
+function detectTakeover(prevList: LeaderboardEntry[], nextList: LeaderboardEntry[]) {
+  const prevRanks = new Map<string, number>();
+  prevList.forEach((item, index) => {
+    prevRanks.set(item.id, index);
+  });
+
+  const maxLen = Math.min(nextList.length, MAX_VISIBLE);
+  for (let nextIndex = 0; nextIndex < maxLen; nextIndex++) {
+    const item = nextList[nextIndex]!;
+    const prevIndex = prevRanks.get(item.id);
+    if (prevIndex !== undefined && prevIndex > nextIndex) {
+      const targetIndex = nextIndex + 1;
+      if (targetIndex < maxLen) {
+        const targetItem = nextList[targetIndex]!;
+        const targetPrevIndex = prevRanks.get(targetItem.id);
+        if (targetPrevIndex !== undefined && targetPrevIndex < prevIndex) {
+          return {
+            overtookId: item.id,
+            overtakenId: targetItem.id,
+            banner: { climber: item.name, target: targetItem.name }
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export default function ShowExamLeaderBoard() {
   const params = useParams();
   const roomCode = codeFromParam(params.code);
 
-  const [pool, setPool] = useState(() => sortEntries(DUMMY_LEADERBOARD));
+  const [pool, setPool] = useState<LeaderboardEntry[]>([]);
   const [motion, setMotion] = useState<Record<string, MotionKind>>({});
   const [banner, setBanner] = useState<TakeoverBanner | null>(null);
   const [bannerTick, setBannerTick] = useState(0);
@@ -316,6 +291,10 @@ export default function ShowExamLeaderBoard() {
   const flipRootRef = useRef<HTMLDivElement>(null);
   const flipFirstRectsRef = useRef<Map<string, DOMRect>>(new Map());
   const skipFlipRef = useRef(true);
+
+  const { data: roomDetails } = useRoomDetails(roomCode);
+  const roomId = roomDetails?.room?.id;
+  const { data: initialScoreboardData } = useScoreboard(roomId ?? "", Boolean(roomId));
 
   const visibleEntries = useMemo(() => sortEntries(pool).slice(0, MAX_VISIBLE), [pool]);
 
@@ -336,29 +315,68 @@ export default function ShowExamLeaderBoard() {
     flipFirstRectsRef.current = new Map();
   }, [visibleEntries]);
 
+  // Sync initial scoreboard data
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      flipFirstRectsRef.current = captureFlipRects(flipRootRef.current);
+    if (initialScoreboardData?.scoreboard) {
+      setPool(initialScoreboardData.scoreboard);
+    }
+  }, [initialScoreboardData]);
 
-      setPool((prev) => {
-        const result = simulateTakeover(prev);
-        if (!result) return prev;
+  // Connect to live leaderboard update stream via WebSocket
+  useEffect(() => {
+    if (!roomCode) return;
 
-        setMotion({
-          [result.overtookId]: "overtook",
-          [result.overtakenId]: "overtaken",
+    const wsBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000")
+      .replace(/^http:/, "ws:")
+      .replace(/^https:/, "wss:");
+
+    const socket = new WebSocket(wsBaseUrl);
+
+    socket.onopen = () => {
+      socket.send(
+        JSON.stringify({
+          type: "subscribe",
+          code: roomCode,
+        }),
+      );
+    };
+
+    socket.onmessage = (event) => {
+      let payload: any;
+      try {
+        payload = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+
+      if (payload.type === "leaderboard_updated" && Array.isArray(payload.scoreboard)) {
+        const nextScoreboard = payload.scoreboard as LeaderboardEntry[];
+
+        // Capture current layout positions for FLIP animation
+        flipFirstRectsRef.current = captureFlipRects(flipRootRef.current);
+
+        setPool((prev) => {
+          const takeover = detectTakeover(prev, nextScoreboard);
+          if (takeover) {
+            setMotion({
+              [takeover.overtookId]: "overtook",
+              [takeover.overtakenId]: "overtaken",
+            });
+            setBanner(takeover.banner);
+            setBannerTick((tick) => tick + 1);
+
+            window.setTimeout(() => setMotion({}), 1100);
+          }
+
+          return nextScoreboard;
         });
-        setBanner(result.banner);
-        setBannerTick((tick) => tick + 1);
+      }
+    };
 
-        window.setTimeout(() => setMotion({}), 1100);
-
-        return result.nextPool;
-      });
-    }, LIVE_TICK_MS);
-
-    return () => window.clearInterval(timer);
-  }, []);
+    return () => {
+      socket.close();
+    };
+  }, [roomCode]);
 
   return (
     <div className="leaderboard-enter flex w-full flex-col gap-8 pb-6">

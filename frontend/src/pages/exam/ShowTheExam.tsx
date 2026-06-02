@@ -5,6 +5,7 @@ import type { QuestionAnswer, QuestionPhase } from "../../types/exam";
 import { QUESTION_TIME_SECONDS } from "../../types/exam";
 import { useGetAllParticipants, useGetQuestions, useRoomDetails } from "../../query/queries";
 import { getTempUser } from "../../utils/tempUser";
+import { submitAnswer } from "../../services/quizApi";
 
 function codeFromParam(input: string | undefined) {
   return (input ?? "").trim().replace(/\s+/g, "").toUpperCase() || "DEMO";
@@ -48,12 +49,13 @@ export default function ShowTheExam() {
   }, [roomDetails?.room, myParticipant, navigate, roomCode]);
 
   const totalQuestions = questions.length;
-  const maxPoints = questions.reduce((sum, q) => sum + q.points, 0);
+  const maxPoints = questions.reduce((sum, q) => sum + q.points * 100, 0);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>({});
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_SECONDS);
   const [isComplete, setIsComplete] = useState(false);
+  const [socket, setSocket] = useState<WebSocket | null>(null);
 
   const currentQuestion = questions[currentIndex];
   const currentQuestionId = currentQuestion?.id;
@@ -69,12 +71,69 @@ export default function ShowTheExam() {
     const selected = question.options.find(
       (o) => o.id === answer.selectedOptionId,
     );
-    return selected?.isCorrect ? sum + question.points : sum;
+    return selected?.isCorrect ? sum + question.points * 100 : sum;
   }, 0);
 
-  function revealQuestion(questionId: string, selectedOptionId: string | null) {
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const wsBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000")
+      .replace(/^http:/, "ws:")
+      .replace(/^https:/, "wss:");
+
+    const ws = new WebSocket(wsBaseUrl);
+
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({
+          type: "subscribe",
+          code: roomCode,
+        }),
+      );
+    };
+
+    setSocket(ws);
+
+    return () => {
+      ws.close();
+    };
+  }, [roomCode]);
+
+  function submitAnswerToWs(roomQuestionId: string, selectedOptionId: string | null, elapsedSeconds: number) {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.warn("WebSocket not connected. Trying REST fallback.");
+      if (roomDetails?.room.id && myParticipant?.id) {
+        submitAnswer(roomDetails.room.id, {
+          participantId: myParticipant.id,
+          roomQuestionId,
+          selectedOptionId: selectedOptionId ?? undefined,
+          timeTakenSeconds: elapsedSeconds,
+        }).catch(err => console.error("REST submitAnswer fallback error:", err));
+      }
+      return;
+    }
+
+    if (myParticipant?.id) {
+      socket.send(
+        JSON.stringify({
+          type: "submit_answer",
+          code: roomCode,
+          participantId: myParticipant.id,
+          roomQuestionId,
+          selectedOptionId,
+          timeTakenSeconds: elapsedSeconds,
+        })
+      );
+    }
+  }
+
+  function revealQuestion(questionId: string, roomQuestionId: string, selectedOptionId: string | null) {
     setAnswers((prev) => {
       if (prev[questionId]) return prev;
+
+      const elapsedSeconds = QUESTION_TIME_SECONDS - timeLeft;
+      submitAnswerToWs(roomQuestionId, selectedOptionId, elapsedSeconds);
+
       return {
         ...prev,
         [questionId]: { selectedOptionId, revealedAt: Date.now() },
@@ -83,8 +142,8 @@ export default function ShowTheExam() {
   }
 
   function selectOption(optionId: string) {
-    if (!currentQuestionId || answers[currentQuestionId]) return;
-    revealQuestion(currentQuestionId, optionId);
+    if (!currentQuestionId || !currentQuestion || answers[currentQuestionId]) return;
+    revealQuestion(currentQuestionId, currentQuestion.roomQuestionId || currentQuestion.id, optionId);
   }
 
   function goToQuestion(nextIndex: number) {
@@ -101,8 +160,8 @@ export default function ShowTheExam() {
     const timer = window.setTimeout(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          if (currentQuestionId) {
-            revealQuestion(currentQuestionId, null);
+          if (currentQuestionId && currentQuestion) {
+            revealQuestion(currentQuestionId, currentQuestion.roomQuestionId || currentQuestion.id, null);
           }
           return 0;
         }
@@ -112,7 +171,7 @@ export default function ShowTheExam() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [timeLeft, phase, isComplete, currentQuestionId, answers, questions]);
+  }, [timeLeft, phase, isComplete, currentQuestionId, currentQuestion, answers, questions]);
 
   function goPrev() {
     if (currentIndex <= 0) return;

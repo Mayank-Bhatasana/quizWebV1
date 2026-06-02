@@ -16,7 +16,6 @@ import DashboardProfile from "../pages/dashboard/Profile";
 import ShowTheExam from "../pages/exam/ShowTheExam";
 import ShowExamLeaderBoard from "../pages/exam/ShowExamLeaderBoard";
 import Login from "../pages/Login";
-import RequireAuth from "../components/auth/RequireAuth";
 
 export const router = createBrowserRouter([
   {
@@ -58,38 +57,33 @@ export const router = createBrowserRouter([
     ]
   },
   {
-    element: <RequireAuth />,
+    path: "dashboard",
+    element: <DashboardLayout />,
+    errorElement: <RouteError />,
     children: [
       {
-        path: "dashboard",
-        element: <DashboardLayout />,
-        errorElement: <RouteError />,
-        children: [
-          {
-            index: true,
-            element: <DashboardHome />,
-          },
-          {
-            path: "session/:code",
-            element: <SessionLobby />,
-          },
-          {
-            path: "analytics",
-            element: <DashboardAnalytics />,
-          },
-          {
-            path: "profile",
-            element: <DashboardProfile />,
-          },
-          {
-            path: "create",
-            element: <CreateSession />,
-          },
-          {
-            path: "*",
-            element: <NotFound />,
-          },
-        ],
+        index: true,
+        element: <DashboardHome />,
+      },
+      {
+        path: "session/:code",
+        element: <SessionLobby />,
+      },
+      {
+        path: "analytics",
+        element: <DashboardAnalytics />,
+      },
+      {
+        path: "profile",
+        element: <DashboardProfile />,
+      },
+      {
+        path: "create",
+        element: <CreateSession />,
+      },
+      {
+        path: "*",
+        element: <NotFound />,
       },
     ],
   },

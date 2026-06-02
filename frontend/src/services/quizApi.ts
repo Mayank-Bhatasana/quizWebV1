@@ -187,8 +187,19 @@ export async function submitAnswer(
   });
 }
 
+export type LeaderboardEntry = {
+  id: string;
+  name: string;
+  avatar: string;
+  avatarBg: string;
+  score: number;
+  correct: number;
+  total: number;
+  timeSeconds: number;
+};
+
 export async function getScoreboard(roomId: string) {
   return apiFetch<{
-    scoreboard: { participantId: string; displayName: string; score: number }[];
+    scoreboard: LeaderboardEntry[];
   }>(`/api/rooms/${roomId}/scoreboard`);
 }

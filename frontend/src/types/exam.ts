@@ -6,6 +6,7 @@ export type ExamOption = {
 
 export type ExamQuestion = {
   id: string;
+  roomQuestionId?: string;
   text: string;
   points: number;
   explanation?: string;
