@@ -247,6 +247,9 @@ importers:
       '@types/swagger-ui-express':
         specifier: ^4.1.8
         version: 4.1.8
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       nodemon:
         specifier: ^3.1.14
         version: 3.1.14
@@ -654,6 +657,9 @@ packages:
 
   '@types/swagger-ui-express@4.1.8':
     resolution: {integrity: sha512-AhZV8/EIreHFmBV5wAs0gzJUNq9JbbSXgJLQubCC0jtIo6prnI9MIRRxnU4MZX9RB9yXxF1V4R7jtLl/Wcj31g==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -1752,6 +1758,10 @@ snapshots:
     dependencies:
       '@types/express': 5.0.6
       '@types/serve-static': 2.2.0
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 25.9.1
 
   accepts@2.0.0:
     dependencies:
