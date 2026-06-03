@@ -89,7 +89,8 @@ export function useRoomDetails(code: string) {
 
 export function useStartRoom() {
   return useMutation({
-    mutationFn: ({ code, profileId }: { code: string; profileId: string }) => startRoom(code, { profileId }),
+    mutationFn: ({ code, profileId, durationSeconds }: { code: string; profileId: string; durationSeconds?: number }) =>
+      startRoom(code, { profileId, durationSeconds }),
   });
 }
 

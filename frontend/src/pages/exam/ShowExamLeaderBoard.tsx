@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useRoomDetails, useScoreboard } from "../../query/queries";
 import type { LeaderboardEntry } from "../../services/quizApi";
@@ -284,6 +284,11 @@ export default function ShowExamLeaderBoard() {
   const roomCode = codeFromParam(params.code);
 
   const [pool, setPool] = useState<LeaderboardEntry[]>([]);
+  const poolRef = useRef<LeaderboardEntry[]>([]);
+  useEffect(() => {
+    poolRef.current = pool;
+  }, [pool]);
+
   const [motion, setMotion] = useState<Record<string, MotionKind>>({});
   const [banner, setBanner] = useState<TakeoverBanner | null>(null);
   const [bannerTick, setBannerTick] = useState(0);
@@ -296,7 +301,15 @@ export default function ShowExamLeaderBoard() {
   const roomId = roomDetails?.room?.id;
   const { data: initialScoreboardData } = useScoreboard(roomId ?? "", Boolean(roomId));
 
-  const visibleEntries = useMemo(() => sortEntries(pool).slice(0, MAX_VISIBLE), [pool]);
+  const [prevInitialData, setPrevInitialData] = useState<any>(null);
+  if (initialScoreboardData !== prevInitialData) {
+    setPrevInitialData(initialScoreboardData);
+    if (initialScoreboardData?.scoreboard) {
+      setPool(initialScoreboardData.scoreboard);
+    }
+  }
+
+  const visibleEntries = sortEntries(pool).slice(0, MAX_VISIBLE);
 
   const topThree = visibleEntries.slice(0, 3);
   const rest = visibleEntries.slice(3);
@@ -314,13 +327,6 @@ export default function ShowExamLeaderBoard() {
     playFlipAnimations(flipRootRef.current, flipFirstRectsRef.current);
     flipFirstRectsRef.current = new Map();
   }, [visibleEntries]);
-
-  // Sync initial scoreboard data
-  useEffect(() => {
-    if (initialScoreboardData?.scoreboard) {
-      setPool(initialScoreboardData.scoreboard);
-    }
-  }, [initialScoreboardData]);
 
   // Connect to live leaderboard update stream via WebSocket
   useEffect(() => {
@@ -355,21 +361,19 @@ export default function ShowExamLeaderBoard() {
         // Capture current layout positions for FLIP animation
         flipFirstRectsRef.current = captureFlipRects(flipRootRef.current);
 
-        setPool((prev) => {
-          const takeover = detectTakeover(prev, nextScoreboard);
-          if (takeover) {
-            setMotion({
-              [takeover.overtookId]: "overtook",
-              [takeover.overtakenId]: "overtaken",
-            });
-            setBanner(takeover.banner);
-            setBannerTick((tick) => tick + 1);
+        const takeover = detectTakeover(poolRef.current, nextScoreboard);
+        if (takeover) {
+          setMotion({
+            [takeover.overtookId]: "overtook",
+            [takeover.overtakenId]: "overtaken",
+          });
+          setBanner(takeover.banner);
+          setBannerTick((tick) => tick + 1);
 
-            window.setTimeout(() => setMotion({}), 1100);
-          }
+          window.setTimeout(() => setMotion({}), 1100);
+        }
 
-          return nextScoreboard;
-        });
+        setPool(nextScoreboard);
       }
     };
 

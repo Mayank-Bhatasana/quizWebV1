@@ -19,11 +19,12 @@ export default function Header() {
   async function handleLogout() {
     try {
       await logoutAsync();
-    } finally {
-      clearTempUser();
-      queryClient.setQueryData(queryKeys.authSession, null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.authSession });
+    } catch (err) {
+      console.error("Logout failed:", err);
     }
+    clearTempUser();
+    queryClient.setQueryData(queryKeys.authSession, null);
+    queryClient.invalidateQueries({ queryKey: queryKeys.authSession });
   }
 
   const isLoggedIn = Boolean(authSession?.user?.id);

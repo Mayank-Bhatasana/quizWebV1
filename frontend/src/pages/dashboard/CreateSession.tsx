@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCreateGuest, useCreateQuestion, useCreateRoom } from "../../query/queries";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
@@ -39,11 +39,9 @@ export default function CreateSession() {
   const [questions, setQuestions] = useState<QuestionDraft[]>(() => [createQuestionDraft()]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const hasValidQuestions = useMemo(() => {
-    return questions.every((q) =>
-      q.text.trim() && q.options.filter((o) => o.text.trim()).length >= 2 && q.options.some((o) => o.isCorrect),
-    );
-  }, [questions]);
+  const hasValidQuestions = questions.every((q) =>
+    q.text.trim() && q.options.filter((o) => o.text.trim()).length >= 2 && q.options.some((o) => o.isCorrect),
+  );
 
   function updateQuestion(questionId: string, patch: Partial<QuestionDraft>) {
     setQuestions((prev) => prev.map((q) => (q.id === questionId ? { ...q, ...patch } : q)));
@@ -105,22 +103,23 @@ export default function CreateSession() {
       });
       const hostProfileId = guest.profile.id;
 
-      const createdQuestions = [] as { questionId: string; points: number }[];
-      for (const q of questions) {
-        const trimmedOptions = q.options
-          .map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect }))
-          .filter((o) => o.text);
+      const createdQuestions = await Promise.all(
+        questions.map(async (q) => {
+          const trimmedOptions = q.options
+            .map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect }))
+            .filter((o) => o.text);
 
-        const result = await createQuestionMutation.mutateAsync({
-          createdById: hostProfileId,
-          text: q.text.trim(),
-          explanation: q.explanation.trim() || undefined,
-          options: trimmedOptions,
-        });
+          const result = await createQuestionMutation.mutateAsync({
+            createdById: hostProfileId,
+            text: q.text.trim(),
+            explanation: q.explanation.trim() || undefined,
+            options: trimmedOptions,
+          });
 
-        const questionId = (result.question as { id: string }).id;
-        createdQuestions.push({ questionId, points: q.points });
-      }
+          const questionId = (result.question as { id: string }).id;
+          return { questionId, points: q.points };
+        })
+      );
 
       const room = await createRoomMutation.mutateAsync({
         hostProfileId,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
 import { useCreateGuest, useGetAllParticipants, useJoinRoom, useRoomDetails, useStartRoom } from "../../query/queries";
@@ -45,6 +45,8 @@ export default function SessionLobby() {
   const [name, setName] = useState(myParticipant.name);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const navigatedRef = useRef(false);
+  const [customDuration, setCustomDuration] = useState<number | null>(null);
 
   const isConnecting = isCreatingGuest || isJoiningRoom;
   const participantCount = allParticipants?.participants?.length ?? 0;
@@ -55,7 +57,8 @@ export default function SessionLobby() {
   const totalSeconds = questionCount * 20;
 
   useEffect(() => {
-    if (!code || !roomStatus || roomStatus === "LOBBY") return;
+    if (!code || !roomStatus || roomStatus === "LOBBY" || navigatedRef.current) return;
+    navigatedRef.current = true;
     const destination = isHost
       ? `/room/${code}/join/leaderboard`
       : `/room/${code}/join`;
@@ -89,6 +92,8 @@ export default function SessionLobby() {
       }
 
       if (payload.type === "room_started") {
+        if (navigatedRef.current) return;
+        navigatedRef.current = true;
         const destination = isHost
           ? `/room/${code}/join/leaderboard`
           : `/room/${code}/join`;
@@ -204,9 +209,13 @@ export default function SessionLobby() {
   async function handleStartQuiz() {
     if (!code || !tempProfileId) return;
     try {
-      await startRoomAsync({ code, profileId: tempProfileId });
+      const durationSeconds = customDuration ?? questionCount * 20 * 2;
+      await startRoomAsync({ code, profileId: tempProfileId, durationSeconds });
       refetchParticipants();
-      navigate(`/room/${code}/join/leaderboard`, { replace: true });
+      if (!navigatedRef.current) {
+        navigatedRef.current = true;
+        navigate(`/room/${code}/join/leaderboard`, { replace: true });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to start quiz";
       setError(message);
@@ -317,14 +326,29 @@ export default function SessionLobby() {
               {isFetchingParticipants ? "Refreshing…" : "Refresh"}
             </button>
             {isHost ? (
-              <button
-                type="button"
-                onClick={handleStartQuiz}
-                disabled={isStartingRoom}
-                className="inline-flex rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-brand-300"
-              >
-                {isStartingRoom ? "Starting…" : "Start quiz"}
-              </button>
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-start gap-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted" htmlFor="durationInput">
+                    Time Limit (sec)
+                  </label>
+                  <input
+                    id="durationInput"
+                    type="number"
+                    value={customDuration ?? questionCount * 20 * 2}
+                    min={questionCount * 20}
+                    onChange={(e) => setCustomDuration(Number(e.target.value))}
+                    className="w-24 rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-semibold text-ink outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartQuiz}
+                  disabled={isStartingRoom}
+                  className="inline-flex rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-brand-300"
+                >
+                  {isStartingRoom ? "Starting…" : "Start quiz"}
+                </button>
+              </div>
             ) : null}
             <button
               type="button"

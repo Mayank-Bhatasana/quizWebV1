@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ExamPlayer from "./components/ExamPlayer";
 import type { QuestionAnswer, QuestionPhase } from "../../types/exam";
@@ -11,9 +11,6 @@ function codeFromParam(input: string | undefined) {
   return (input ?? "").trim().replace(/\s+/g, "").toUpperCase() || "DEMO";
 }
 
-function handleComplete() {
-  // TODO: complete this
-}
 
 export default function ShowTheExam() {
   const params = useParams();
@@ -21,6 +18,7 @@ export default function ShowTheExam() {
   const roomCode = codeFromParam(params.code);
   const tempUser = getTempUser();
   const tempProfileId = tempUser?.profileId;
+
   const { data: roomDetails, isLoading: isLoadingRoomDetails } = useRoomDetails(roomCode);
   const { data: participantsData, isLoading: isLoadingParticipants } = useGetAllParticipants(roomCode);
   const {
@@ -30,32 +28,43 @@ export default function ShowTheExam() {
     error: questionError,
   } = useGetQuestions(roomCode);
 
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>({});
+  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_SECONDS);
+  const [isCompleteState, setIsCompleteState] = useState(false);
+  const socketRef = useRef<WebSocket | null>(null);
+  const navigatedRef = useRef(false);
+
+  const isComplete = isCompleteState || roomDetails?.room?.status === "ENDED";
+
   const questions = data?.questions ?? [];
   const myParticipant = (participantsData?.participants ?? []).find(
     (participant) => participant.profileId === tempProfileId,
   );
 
   useEffect(() => {
-    if (!roomDetails?.room) return;
+    if (!roomDetails?.room || navigatedRef.current) return;
 
     if (roomDetails.room.status === "LOBBY") {
+      navigatedRef.current = true;
       navigate(`/dashboard/session/${roomCode}`, { replace: true });
       return;
     }
 
     if (myParticipant?.isHost || !myParticipant) {
+      navigatedRef.current = true;
       navigate(`/room/${roomCode}/join/leaderboard`, { replace: true });
     }
   }, [roomDetails?.room, myParticipant, navigate, roomCode]);
 
+
+
+  function handleComplete() {
+    navigate(`/room/${roomCode}/join/leaderboard`);
+  }
+
   const totalQuestions = questions.length;
   const maxPoints = questions.reduce((sum, q) => sum + q.points * 100, 0);
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>({});
-  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_SECONDS);
-  const [isComplete, setIsComplete] = useState(false);
-  const [socket, setSocket] = useState<WebSocket | null>(null);
 
   const currentQuestion = questions[currentIndex];
   const currentQuestionId = currentQuestion?.id;
@@ -92,14 +101,16 @@ export default function ShowTheExam() {
       );
     };
 
-    setSocket(ws);
+    socketRef.current = ws;
 
     return () => {
       ws.close();
+      socketRef.current = null;
     };
   }, [roomCode]);
 
   function submitAnswerToWs(roomQuestionId: string, selectedOptionId: string | null, elapsedSeconds: number) {
+    const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       console.warn("WebSocket not connected. Trying REST fallback.");
       if (roomDetails?.room.id && myParticipant?.id) {
@@ -171,7 +182,7 @@ export default function ShowTheExam() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [timeLeft, phase, isComplete, currentQuestionId, currentQuestion, answers, questions]);
+  }, [timeLeft, phase, isComplete, currentQuestionId, currentQuestion, answers, questions, revealQuestion]);
 
   function goPrev() {
     if (currentIndex <= 0) return;
@@ -182,7 +193,7 @@ export default function ShowTheExam() {
     if (!currentQuestionId || !answers[currentQuestionId]) return;
 
     if (currentIndex >= totalQuestions - 1) {
-      setIsComplete(true);
+      setIsCompleteState(true);
       return;
     }
 
