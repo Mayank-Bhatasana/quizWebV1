@@ -73,7 +73,7 @@ export default function SessionLobby() {
     const destination = currentIsHost
       ? `/room/${code}/join/leaderboard`
       : `/room/${code}/join`;
-    navigate(destination, { replace: true });
+    navigate(destination, { replace: true, state: { fromLobby: true } });
   }, [roomStatus, code, roomHostId, navigate]);
 
   useEffect(() => {
@@ -115,7 +115,7 @@ export default function SessionLobby() {
         const destination = currentIsHost
           ? `/room/${code}/join/leaderboard`
           : `/room/${code}/join`;
-        navigate(destination, { replace: true });
+        navigate(destination, { replace: true, state: { fromLobby: true } });
       }
     };
 
@@ -209,7 +209,7 @@ export default function SessionLobby() {
           const destination = isHost
             ? `/room/${code}/join/leaderboard`
             : `/room/${code}/join`;
-          navigate(destination, { replace: true });
+          navigate(destination, { replace: true, state: { fromLobby: true } });
           return;
         }
         setError(message);
@@ -232,7 +232,7 @@ export default function SessionLobby() {
       refetchParticipants();
       if (!navigatedRef.current && window.location.pathname.includes("/dashboard/session/")) {
         navigatedRef.current = true;
-        navigate(`/room/${code}/join/leaderboard`, { replace: true });
+        navigate(`/room/${code}/join/leaderboard`, { replace: true, state: { fromLobby: true } });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to start quiz";
@@ -304,7 +304,7 @@ export default function SessionLobby() {
               Joined
             </p>
             <p className="mt-2 text-2xl font-extrabold text-ink">
-               {isLoadingParticipants ? "…" : participantCount}
+              {isLoadingParticipants ? "…" : participantCount}
             </p>
           </div>
           <div className="rounded-2xl border border-line bg-surface-soft p-5">
@@ -400,8 +400,8 @@ export default function SessionLobby() {
                 ) : (
                   <div
                     className="flex size-10 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-ink"
-                   aria-hidden
-                 >
+                    aria-hidden
+                  >
                     {p.displayName.slice(0, 1).toUpperCase()}
                   </div>
                 )}
