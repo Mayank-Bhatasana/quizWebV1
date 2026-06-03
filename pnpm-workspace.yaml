@@ -1,6 +1,12 @@
 packages:
   - frontend
   - backend
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - "react-doctor"
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - "semver@6.3.1"
 allowBuilds:
   '@prisma/engines': false
   '@scarf/scarf': false

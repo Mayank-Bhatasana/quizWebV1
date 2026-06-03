@@ -6,7 +6,7 @@ export function ShowGreet() {
 
   return (
     <>
-      {isLoading ? <p>Loading...</p> : null}
+      {isLoading ? <p>Loading…</p> : null}
       {isError ? <p>Failed to load greeting.</p> : null}
       <h1>{message}</h1>
     </>

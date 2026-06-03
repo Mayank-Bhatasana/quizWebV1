@@ -115,15 +115,15 @@ export default function DashboardHome() {
 
       updateTempUser({ profileId: hostProfileId });
       navigate(`/dashboard/session/${room.room.code}`);
+      setIsDemoCreating(false);
     } catch (err) {
       console.error("Failed to create demo room:", err);
       alert("Failed to create demo room: " + (err instanceof Error ? err.message : String(err)));
-    } finally {
       setIsDemoCreating(false);
     }
   }
 
-  const codeHint = useMemo(() => randomCodeHint(), []);
+  const [codeHint] = useState(() => randomCodeHint());
 
   function goToLobby() {
     const finalCode = normalizeCode(code);

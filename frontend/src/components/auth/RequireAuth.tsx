@@ -8,7 +8,7 @@ export default function RequireAuth() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-10 text-sm font-semibold text-muted sm:px-6">
-        Checking your session...
+        Checking your session…
       </div>
     );
   }
