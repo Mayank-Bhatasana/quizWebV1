@@ -1,6 +1,14 @@
 import crypto from "crypto";
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma.js";
+
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    userId: string;
+    profileId: string;
+    email: string;
+  };
+}
 
 export const GUEST_COOKIE_NAME = "quiz_guest";
 export const AUTH_COOKIE_NAME = "quiz_auth";
@@ -178,13 +186,18 @@ export const getAuthSession = (req: Request) => {
   return verifyAuthToken(token);
 };
 
-export const requireAuth = (req: Request, res: Response) => {
+export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const session = getAuthSession(req);
   if (!session) {
     res.status(401).json({ error: "Unauthorized" });
-    return null;
+    return;
   }
-  return session;
+  req.user = {
+    userId: session.userId,
+    profileId: session.profileId,
+    email: session.email,
+  };
+  next();
 };
 
 export const ensureUserProfile = async (user: { id: string; email: string }) => {

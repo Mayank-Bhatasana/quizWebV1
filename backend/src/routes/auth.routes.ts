@@ -18,6 +18,7 @@ import {
   AUTH_RATE_MAX_REGISTER,
   AUTH_RATE_MAX_LOGIN,
 } from "../utils/auth.js";
+import type { AuthenticatedRequest } from "../utils/auth.js";
 
 const router: Router = Router();
 
@@ -154,26 +155,29 @@ router.post("/auth/login", async (req, res) => {
  * GET /api/auth/me
  * Returns the currently authenticated user profile from cookie session.
  */
-router.get("/auth/me", async (req, res) => {
-  const session = requireAuth(req, res);
-  if (!session) return;
+router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const user = req.user;
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.userId },
   });
 
-  if (!user) {
+  if (!dbUser) {
     clearAuthCookie(res);
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const profile = await ensureUserProfile(user);
+  const profile = await ensureUserProfile(dbUser);
 
   res.json({
     user: {
-      id: user.id,
-      email: user.email,
+      id: dbUser.id,
+      email: dbUser.email,
     },
     profile,
   });
