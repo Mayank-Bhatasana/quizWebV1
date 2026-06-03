@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import ExamPlayer from "./components/ExamPlayer";
 import type { QuestionAnswer, QuestionPhase } from "../../types/exam";
 import { QUESTION_TIME_SECONDS } from "../../types/exam";
@@ -18,9 +18,6 @@ export default function ShowTheExam() {
   const roomCode = codeFromParam(params.code);
   const tempUser = getTempUser();
   const tempProfileId = tempUser?.profileId;
-
-  const location = useLocation();
-  const fromLobby = location.state?.fromLobby;
 
   const { data: roomDetails, isLoading: isLoadingRoomDetails, isFetching: isFetchingRoomDetails } = useRoomDetails(roomCode);
   const { data: participantsData, isLoading: isLoadingParticipants, isFetching: isFetchingParticipants } = useGetAllParticipants(roomCode);
@@ -50,7 +47,7 @@ export default function ShowTheExam() {
     if (isLoadingQuestions || isLoadingRoomDetails || isLoadingParticipants) return;
     if (!window.location.pathname.endsWith("/join")) return;
 
-    if (fromLobby && (isFetchingRoomDetails || isFetchingParticipants)) return;
+    if (isFetchingRoomDetails || isFetchingParticipants) return;
 
     if (roomDetails.room.status === "LOBBY") {
       navigatedRef.current = true;
@@ -69,7 +66,6 @@ export default function ShowTheExam() {
     isLoadingParticipants,
     isFetchingRoomDetails,
     isFetchingParticipants,
-    fromLobby,
     myParticipant,
     navigate,
     roomCode,

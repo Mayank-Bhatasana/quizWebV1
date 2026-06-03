@@ -66,6 +66,7 @@ export function useGetAllParticipants(code: string) {
     queryKey: queryKeys.roomParticipants(code),
     queryFn: () => getAllTheParticipants(code),
     enabled: Boolean(code),
+    staleTime: 0,
   });
 }
 
@@ -84,6 +85,7 @@ export function useRoomDetails(code: string) {
     queryKey: queryKeys.roomDetails(code),
     queryFn: () => getRoomDetails(code),
     enabled: Boolean(code),
+    staleTime: 0,
   });
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTempUser } from "../../hooks/useTempUser";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
 import { useCreateGuest, useGetAllParticipants, useJoinRoom, useRoomDetails, useStartRoom } from "../../query/queries";
@@ -22,6 +23,7 @@ function codeFromParam(input: string | undefined) {
 export default function SessionLobby() {
   const params = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const code = codeFromParam(params.code);
   const { mutateAsync: createGuestAsync, isPending: isCreatingGuest } = useCreateGuest();
   const { mutateAsync: joinRoomAsync, isPending: isJoiningRoom } = useJoinRoom();
@@ -73,8 +75,20 @@ export default function SessionLobby() {
     const destination = currentIsHost
       ? `/room/${code}/join/leaderboard`
       : `/room/${code}/join`;
+
+    queryClient.setQueryData(["room", code, "details"], (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        room: {
+          ...old.room,
+          status: "LIVE",
+        },
+      };
+    });
+
     navigate(destination, { replace: true, state: { fromLobby: true } });
-  }, [roomStatus, code, roomHostId, navigate]);
+  }, [roomStatus, code, roomHostId, navigate, queryClient]);
 
   useEffect(() => {
     if (!code) return;
@@ -115,6 +129,18 @@ export default function SessionLobby() {
         const destination = currentIsHost
           ? `/room/${code}/join/leaderboard`
           : `/room/${code}/join`;
+
+        queryClient.setQueryData(["room", code, "details"], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            room: {
+              ...old.room,
+              status: "LIVE",
+            },
+          };
+        });
+
         navigate(destination, { replace: true, state: { fromLobby: true } });
       }
     };
@@ -122,7 +148,7 @@ export default function SessionLobby() {
     return () => {
       socket.close();
     };
-  }, [code, roomHostId, navigate]);
+  }, [code, roomHostId, navigate, queryClient]);
 
   function copyCode() {
     navigator.clipboard?.writeText(code);
@@ -209,6 +235,18 @@ export default function SessionLobby() {
           const destination = isHost
             ? `/room/${code}/join/leaderboard`
             : `/room/${code}/join`;
+
+          queryClient.setQueryData(["room", code, "details"], (old: any) => {
+            if (!old) return old;
+            return {
+              ...old,
+              room: {
+                ...old.room,
+                status: "LIVE",
+              },
+            };
+          });
+
           navigate(destination, { replace: true, state: { fromLobby: true } });
           return;
         }
@@ -222,7 +260,7 @@ export default function SessionLobby() {
     return () => {
       cancelled = true;
     };
-  }, [code, roomStatus, name, createGuestAsync, joinRoomAsync, isHost, navigate]);
+  }, [code, roomStatus, name, createGuestAsync, joinRoomAsync, isHost, navigate, queryClient]);
 
   async function handleStartQuiz() {
     if (!code || !tempProfileId) return;
@@ -232,6 +270,18 @@ export default function SessionLobby() {
       refetchParticipants();
       if (!navigatedRef.current && window.location.pathname.includes("/dashboard/session/")) {
         navigatedRef.current = true;
+
+        queryClient.setQueryData(["room", code, "details"], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            room: {
+              ...old.room,
+              status: "LIVE",
+            },
+          };
+        });
+
         navigate(`/room/${code}/join/leaderboard`, { replace: true, state: { fromLobby: true } });
       }
     } catch (err) {
