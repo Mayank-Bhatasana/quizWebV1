@@ -44,6 +44,7 @@ export default function ShowTheExam() {
 
   useEffect(() => {
     if (!roomDetails?.room || navigatedRef.current) return;
+    if (isLoadingQuestions || isLoadingRoomDetails || isLoadingParticipants) return;
 
     if (roomDetails.room.status === "LOBBY") {
       navigatedRef.current = true;
@@ -55,7 +56,15 @@ export default function ShowTheExam() {
       navigatedRef.current = true;
       navigate(`/room/${roomCode}/join/leaderboard`, { replace: true });
     }
-  }, [roomDetails?.room, myParticipant, navigate, roomCode]);
+  }, [
+    roomDetails?.room,
+    isLoadingQuestions,
+    isLoadingRoomDetails,
+    isLoadingParticipants,
+    myParticipant,
+    navigate,
+    roomCode,
+  ]);
 
 
 

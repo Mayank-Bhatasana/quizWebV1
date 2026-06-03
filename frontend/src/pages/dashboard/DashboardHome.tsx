@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AccountPrompt from "../../components/dashboard/AccountPrompt";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";

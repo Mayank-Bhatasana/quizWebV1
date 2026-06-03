@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTempUser } from "../../hooks/useTempUser";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
 import { useCreateGuest, useGetAllParticipants, useJoinRoom, useRoomDetails, useStartRoom } from "../../query/queries";
 
@@ -33,7 +34,7 @@ export default function SessionLobby() {
     refetch: refetchParticipants,
   } = useGetAllParticipants(code);
 
-  const tempUser = getTempUser();
+  const tempUser = useTempUser();
   const myParticipant: LobbyParticipant = {
     id: tempUser?.id ?? "me",
     name: tempUser?.name?.trim() || "Guest",
@@ -56,14 +57,23 @@ export default function SessionLobby() {
   const questionCount = roomDetails?.room.questionCount ?? 0;
   const totalSeconds = questionCount * 20;
 
+  const roomHostId = roomDetails?.room.hostId;
+
   useEffect(() => {
     if (!code || !roomStatus || roomStatus === "LOBBY" || navigatedRef.current) return;
     navigatedRef.current = true;
-    const destination = isHost
+
+    const currentTempUser = getTempUser();
+    const currentIsHost = Boolean(
+      currentTempUser?.profileId &&
+      roomHostId === currentTempUser.profileId
+    );
+
+    const destination = currentIsHost
       ? `/room/${code}/join/leaderboard`
       : `/room/${code}/join`;
     navigate(destination, { replace: true });
-  }, [roomStatus, code, isHost, navigate]);
+  }, [roomStatus, code, roomHostId, navigate]);
 
   useEffect(() => {
     if (!code) return;
@@ -94,7 +104,14 @@ export default function SessionLobby() {
       if (payload.type === "room_started") {
         if (navigatedRef.current) return;
         navigatedRef.current = true;
-        const destination = isHost
+
+        const currentTempUser = getTempUser();
+        const currentIsHost = Boolean(
+          currentTempUser?.profileId &&
+          roomHostId === currentTempUser.profileId
+        );
+
+        const destination = currentIsHost
           ? `/room/${code}/join/leaderboard`
           : `/room/${code}/join`;
         navigate(destination, { replace: true });
@@ -104,7 +121,7 @@ export default function SessionLobby() {
     return () => {
       socket.close();
     };
-  }, [code, isHost, navigate]);
+  }, [code, roomHostId, navigate]);
 
   function copyCode() {
     navigator.clipboard?.writeText(code);
