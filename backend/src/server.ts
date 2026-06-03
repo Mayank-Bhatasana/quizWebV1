@@ -255,6 +255,34 @@ const markRoomDirty = (roomCode: string) => {
   dirtyRooms.add(roomCode.trim().toUpperCase());
 };
 
+async function checkAndExpireRoom(room: any) {
+  if (room.status === "LIVE" && room.endedAt && new Date() > new Date(room.endedAt)) {
+    const updated = await prisma.quizRoom.update({
+      where: { id: room.id },
+      data: { status: "ENDED" },
+    });
+    // Broadcast status change
+    publishToRoom(updated.code, {
+      type: "room_ended",
+      room: {
+        code: updated.code,
+        status: updated.status,
+        endedAt: updated.endedAt,
+      },
+    });
+    return updated;
+  }
+  return room;
+}
+
+async function getActiveRoom(codeOrId: string, isId = false) {
+  const room = await prisma.quizRoom.findUnique({
+    where: isId ? { id: codeOrId } : { code: codeOrId.toUpperCase() },
+  });
+  if (!room) return null;
+  return checkAndExpireRoom(room);
+}
+
 wss.on("connection", (ws) => {
   ws.on("message", async (raw) => {
     let payload: any;
@@ -277,9 +305,7 @@ wss.on("connection", (ws) => {
       }
 
       try {
-        const room = await prisma.quizRoom.findUnique({
-          where: { code: code.toUpperCase() }
-        });
+        const room = await getActiveRoom(code);
         if (!room || room.status !== "LIVE") return;
 
         await saveAnswer({
@@ -851,7 +877,7 @@ app.post("/api/rooms/:code/join", async (req, res) => {
       .json({ error: "profileId and displayName are required" });
   }
 
-  const room = await prisma.quizRoom.findUnique({ where: { code } });
+  const room = await getActiveRoom(code);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -889,7 +915,7 @@ app.post("/api/rooms/:code/join", async (req, res) => {
 app.get("/api/rooms/:code/participants", async (req, res) => {
   const { code } = req.params;
 
-  const room = await prisma.quizRoom.findUnique({ where: { code } });
+  const room = await getActiveRoom(code);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -925,16 +951,14 @@ app.get("/api/rooms/:code/participants", async (req, res) => {
 app.get("/api/rooms/:code", async (req, res) => {
   const { code } = req.params;
 
-  const room = await prisma.quizRoom.findUnique({
-    where: { code },
-    include: {
-      questions: true,
-    },
-  });
-
+  const room = await getActiveRoom(code);
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
+
+  const questionCount = await prisma.roomQuestion.count({
+    where: { roomId: room.id },
+  });
 
   return res.json({
     room: {
@@ -943,7 +967,7 @@ app.get("/api/rooms/:code", async (req, res) => {
       status: room.status,
       hostId: room.hostId,
       startedAt: room.startedAt,
-      questionCount: room.questions.length,
+      questionCount: questionCount,
     },
   });
 });
@@ -955,13 +979,16 @@ app.get("/api/rooms/:code", async (req, res) => {
  */
 app.post("/api/rooms/:code/start", async (req, res) => {
   const { code } = req.params;
-  const { profileId } = req.body ?? {};
+  const { profileId, durationSeconds } = req.body ?? {};
 
   if (!profileId) {
     return res.status(400).json({ error: "profileId is required" });
   }
 
-  const room = await prisma.quizRoom.findUnique({ where: { code } });
+  const room = await prisma.quizRoom.findUnique({
+    where: { code: code.toUpperCase() },
+    include: { questions: true }
+  });
   if (!room) {
     return res.status(404).json({ error: "Room not found" });
   }
@@ -974,11 +1001,24 @@ app.post("/api/rooms/:code/start", async (req, res) => {
     return res.status(400).json({ error: "Room is not in LOBBY status" });
   }
 
+  const numQuestions = room.questions.length;
+  const minDuration = numQuestions * 20;
+  const defaultDuration = numQuestions * 20 * 2;
+
+  let finalDuration = defaultDuration;
+  if (typeof durationSeconds === "number" && durationSeconds > 0) {
+    finalDuration = Math.max(minDuration, durationSeconds);
+  }
+
+  const startedAt = new Date();
+  const endedAt = new Date(startedAt.getTime() + finalDuration * 1000);
+
   const updated = await prisma.quizRoom.update({
     where: { id: room.id },
     data: {
       status: "LIVE",
-      startedAt: new Date(),
+      startedAt,
+      endedAt,
     },
   });
 
@@ -988,6 +1028,7 @@ app.post("/api/rooms/:code/start", async (req, res) => {
       code: updated.code,
       status: updated.status,
       startedAt: updated.startedAt,
+      endedAt: updated.endedAt,
     },
   });
 
@@ -998,6 +1039,7 @@ app.post("/api/rooms/:code/start", async (req, res) => {
       status: updated.status,
       hostId: updated.hostId,
       startedAt: updated.startedAt,
+      endedAt: updated.endedAt,
     },
   });
 });
@@ -1009,8 +1051,13 @@ app.post("/api/rooms/:code/start", async (req, res) => {
 app.get("/api/room/:code/questions", async (req, res) => {
   const { code } = req.params;
 
+  const activeRoom = await getActiveRoom(code);
+  if (!activeRoom) {
+    return res.status(404).json({ error: "Room not found" });
+  }
+
   const room = await prisma.quizRoom.findUnique({
-    where: { code },
+    where: { id: activeRoom.id },
     include: {
       questions: {
         orderBy: { orderIndex: "asc" },

@@ -77,6 +77,12 @@ export default function ShowTheExam() {
     navigate(`/room/${roomCode}/join/leaderboard`);
   }
 
+
+
+  function handleComplete() {
+    navigate(`/room/${roomCode}/join/leaderboard`);
+  }
+
   const totalQuestions = questions.length;
   const maxPoints = questions.reduce((sum, q) => sum + q.points * 100, 0);
 
