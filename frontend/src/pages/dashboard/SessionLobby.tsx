@@ -61,6 +61,7 @@ export default function SessionLobby() {
 
   useEffect(() => {
     if (!code || !roomStatus || roomStatus === "LOBBY" || navigatedRef.current) return;
+    if (!window.location.pathname.includes("/dashboard/session/")) return;
     navigatedRef.current = true;
 
     const currentTempUser = getTempUser();
@@ -102,7 +103,7 @@ export default function SessionLobby() {
       }
 
       if (payload.type === "room_started") {
-        if (navigatedRef.current) return;
+        if (navigatedRef.current || !window.location.pathname.includes("/dashboard/session/")) return;
         navigatedRef.current = true;
 
         const currentTempUser = getTempUser();
@@ -229,7 +230,7 @@ export default function SessionLobby() {
       const durationSeconds = customDuration ?? questionCount * 20 * 2;
       await startRoomAsync({ code, profileId: tempProfileId, durationSeconds });
       refetchParticipants();
-      if (!navigatedRef.current) {
+      if (!navigatedRef.current && window.location.pathname.includes("/dashboard/session/")) {
         navigatedRef.current = true;
         navigate(`/room/${code}/join/leaderboard`, { replace: true });
       }

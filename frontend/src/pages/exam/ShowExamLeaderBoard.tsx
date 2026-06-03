@@ -420,15 +420,15 @@ export default function ShowExamLeaderBoard() {
       </div>
 
       <div ref={flipRootRef} className="grid gap-8">
-        {first && second && third ? (
+        {first ? (
           <section
-            aria-label="Top three players"
+            aria-label="Top players"
             className="rounded-3xl border border-line/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm sm:p-8"
           >
             <div className="flex items-end justify-center gap-3 sm:gap-6">
-              <PodiumSpot place={2} entry={second} motion={motion[second.id]} />
+              {second ? <PodiumSpot place={2} entry={second} motion={motion[second.id]} /> : null}
               <PodiumSpot place={1} entry={first} motion={motion[first.id]} />
-              <PodiumSpot place={3} entry={third} motion={motion[third.id]} />
+              {third ? <PodiumSpot place={3} entry={third} motion={motion[third.id]} /> : null}
             </div>
           </section>
         ) : null}

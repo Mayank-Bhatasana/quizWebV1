@@ -45,6 +45,7 @@ export default function ShowTheExam() {
   useEffect(() => {
     if (!roomDetails?.room || navigatedRef.current) return;
     if (isLoadingQuestions || isLoadingRoomDetails || isLoadingParticipants) return;
+    if (!window.location.pathname.endsWith("/join")) return;
 
     if (roomDetails.room.status === "LOBBY") {
       navigatedRef.current = true;
