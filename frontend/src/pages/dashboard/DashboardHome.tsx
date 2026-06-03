@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AccountPrompt from "../../components/dashboard/AccountPrompt";
-import { createTempUser, getTempUser, setTempUser } from "../../utils/tempUser";
+import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
+import { useCreateGuest, useCreateQuestion, useCreateRoom } from "../../query/queries";
 
 const featuredQuizzes = [
   {
@@ -35,6 +36,92 @@ export default function DashboardHome() {
   const [code, setCode] = useState("");
   const [showNameModal, setShowNameModal] = useState(false);
   const [name, setName] = useState("");
+
+  const createGuestMutation = useCreateGuest();
+  const createQuestionMutation = useCreateQuestion();
+  const createRoomMutation = useCreateRoom();
+  const [isDemoCreating, setIsDemoCreating] = useState(false);
+
+  async function handleCreateDemoRoom() {
+    setIsDemoCreating(true);
+    let local = getTempUser();
+    const displayName = local?.name || "Demo Host";
+    if (!local) {
+      local = createTempUser(displayName);
+      setTempUser(local);
+    }
+
+    try {
+      const guest = await createGuestMutation.mutateAsync({
+        displayName,
+        avatarUrl: local.avatarUrl ?? null,
+      });
+      const hostProfileId = guest.profile.id;
+
+      const DEMO_QUESTIONS = [
+        {
+          text: "What is the speed of light?",
+          explanation: "The speed of light in a vacuum is exactly 299,792,458 meters per second (about 300,000 km/s).",
+          points: 1,
+          options: [
+            { text: "299,792 km/s", isCorrect: true },
+            { text: "150,000 km/s", isCorrect: false },
+            { text: "450,000 km/s", isCorrect: false },
+            { text: "500,000 km/s", isCorrect: false },
+          ],
+        },
+        {
+          text: "Which of the following is NOT a programming language?",
+          explanation: "HTML is a markup language, not a programming language.",
+          points: 1,
+          options: [
+            { text: "Python", isCorrect: false },
+            { text: "TypeScript", isCorrect: false },
+            { text: "HTML", isCorrect: true },
+            { text: "Rust", isCorrect: false },
+          ],
+        },
+        {
+          text: "What does CPU stand for?",
+          explanation: "CPU stands for Central Processing Unit.",
+          points: 2,
+          options: [
+            { text: "Central Processing Unit", isCorrect: true },
+            { text: "Computer Personal Unit", isCorrect: false },
+            { text: "Central Power Unit", isCorrect: false },
+            { text: "Control Processing Utility", isCorrect: false },
+          ],
+        },
+      ];
+
+      const results = await Promise.all(
+        DEMO_QUESTIONS.map(async (q) => {
+          const result = await createQuestionMutation.mutateAsync({
+            createdById: hostProfileId,
+            text: q.text,
+            explanation: q.explanation,
+            options: q.options,
+          });
+          const questionId = (result.question as { id: string }).id;
+          return { questionId, points: q.points };
+        })
+      );
+      const createdQuestions = results;
+
+      const room = await createRoomMutation.mutateAsync({
+        hostProfileId,
+        questions: createdQuestions,
+      });
+
+      updateTempUser({ profileId: hostProfileId });
+      navigate(`/dashboard/session/${room.room.code}`);
+    } catch (err) {
+      console.error("Failed to create demo room:", err);
+      alert("Failed to create demo room: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsDemoCreating(false);
+    }
+  }
 
   const codeHint = useMemo(() => randomCodeHint(), []);
 
@@ -95,6 +182,7 @@ export default function DashboardHome() {
             </div>
 
             <button
+              type="button"
               onClick={handleJoin}
               className="inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700"
             >
@@ -107,10 +195,19 @@ export default function DashboardHome() {
               Host a session instead?
             </span>
             <button
+              type="button"
               onClick={() => navigate("/dashboard/create")}
               className="rounded-full border border-line bg-white px-4 py-2 text-xs font-semibold text-ink transition hover:bg-surface-soft"
             >
               Create a room
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateDemoRoom}
+              disabled={isDemoCreating}
+              className="rounded-full bg-brand-100 hover:bg-brand-200 border border-brand-200 px-4 py-2 text-xs font-semibold text-brand-700 transition disabled:opacity-50"
+            >
+              {isDemoCreating ? "Creating Demo..." : "Create Demo Room (Fast Test)"}
             </button>
           </div>
         </section>
@@ -190,16 +287,18 @@ export default function DashboardHome() {
 
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
+                type="button"
                 onClick={() => setShowNameModal(false)}
                 className="rounded-xl border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-surface-soft"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleCreateTempUser}
                 className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
               >
-                Continue
+                Save and join
               </button>
             </div>
           </div>

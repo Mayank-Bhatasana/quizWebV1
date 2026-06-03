@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ExamPlayer from "./components/ExamPlayer";
 import type { QuestionAnswer, QuestionPhase } from "../../types/exam";
@@ -11,9 +11,6 @@ function codeFromParam(input: string | undefined) {
   return (input ?? "").trim().replace(/\s+/g, "").toUpperCase() || "DEMO";
 }
 
-function handleComplete() {
-  // TODO: complete this
-}
 
 export default function ShowTheExam() {
   const params = useParams();
@@ -35,18 +32,32 @@ export default function ShowTheExam() {
     (participant) => participant.profileId === tempProfileId,
   );
 
+  const navigatedRef = useRef(false);
+
   useEffect(() => {
-    if (!roomDetails?.room) return;
+    if (!roomDetails?.room || navigatedRef.current) return;
 
     if (roomDetails.room.status === "LOBBY") {
+      navigatedRef.current = true;
       navigate(`/dashboard/session/${roomCode}`, { replace: true });
       return;
     }
 
     if (myParticipant?.isHost || !myParticipant) {
+      navigatedRef.current = true;
       navigate(`/room/${roomCode}/join/leaderboard`, { replace: true });
     }
   }, [roomDetails?.room, myParticipant, navigate, roomCode]);
+
+  useEffect(() => {
+    if (roomDetails?.room?.status === "ENDED") {
+      setIsComplete(true);
+    }
+  }, [roomDetails?.room?.status]);
+
+  function handleComplete() {
+    navigate(`/room/${roomCode}/join/leaderboard`);
+  }
 
   const totalQuestions = questions.length;
   const maxPoints = questions.reduce((sum, q) => sum + q.points * 100, 0);
@@ -55,7 +66,7 @@ export default function ShowTheExam() {
   const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>({});
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_SECONDS);
   const [isComplete, setIsComplete] = useState(false);
-  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
 
   const currentQuestion = questions[currentIndex];
   const currentQuestionId = currentQuestion?.id;
@@ -92,14 +103,16 @@ export default function ShowTheExam() {
       );
     };
 
-    setSocket(ws);
+    socketRef.current = ws;
 
     return () => {
       ws.close();
+      socketRef.current = null;
     };
   }, [roomCode]);
 
-  function submitAnswerToWs(roomQuestionId: string, selectedOptionId: string | null, elapsedSeconds: number) {
+  const submitAnswerToWs = useCallback((roomQuestionId: string, selectedOptionId: string | null, elapsedSeconds: number) => {
+    const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       console.warn("WebSocket not connected. Trying REST fallback.");
       if (roomDetails?.room.id && myParticipant?.id) {
@@ -125,9 +138,9 @@ export default function ShowTheExam() {
         })
       );
     }
-  }
+  }, [roomDetails?.room.id, myParticipant?.id, roomCode]);
 
-  function revealQuestion(questionId: string, roomQuestionId: string, selectedOptionId: string | null) {
+  const revealQuestion = useCallback((questionId: string, roomQuestionId: string, selectedOptionId: string | null) => {
     setAnswers((prev) => {
       if (prev[questionId]) return prev;
 
@@ -139,7 +152,7 @@ export default function ShowTheExam() {
         [questionId]: { selectedOptionId, revealedAt: Date.now() },
       };
     });
-  }
+  }, [timeLeft, submitAnswerToWs]);
 
   function selectOption(optionId: string) {
     if (!currentQuestionId || !currentQuestion || answers[currentQuestionId]) return;
@@ -171,7 +184,7 @@ export default function ShowTheExam() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [timeLeft, phase, isComplete, currentQuestionId, currentQuestion, answers, questions]);
+  }, [timeLeft, phase, isComplete, currentQuestionId, currentQuestion, answers, questions, revealQuestion]);
 
   function goPrev() {
     if (currentIndex <= 0) return;

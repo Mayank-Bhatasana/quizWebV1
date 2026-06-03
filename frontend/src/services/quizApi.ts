@@ -165,7 +165,7 @@ export async function getRoomDetails(code: string) {
   });
 }
 
-export async function startRoom(code: string, input: { profileId: string }) {
+export async function startRoom(code: string, input: { profileId: string; durationSeconds?: number }) {
   return apiFetch<{ room: RoomDetails }>(`/api/rooms/${code}/start`, {
     method: "POST",
     body: input,
