@@ -31,6 +31,9 @@ export default defineConfig({
             return "vendor-react";
           }
 
+          // Do not bundle Prism components into vendor-misc so they can be loaded dynamically
+          if (id.includes("prismjs/components/")) return undefined;
+
           // Everything else in node_modules → a single shared vendor chunk
           if (id.includes("node_modules")) return "vendor-misc";
         },

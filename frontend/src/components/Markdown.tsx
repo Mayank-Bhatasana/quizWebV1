@@ -1,15 +1,45 @@
-import { useMemo, useEffect, useRef } from "react";
-import Prism from "prismjs";
+import { useMemo, useEffect, useState, useRef } from "react";
 import "prismjs/themes/prism-tomorrow.css";
-// Import language definitions
-import "prismjs/components/prism-markup";
-import "prismjs/components/prism-css";
-import "prismjs/components/prism-javascript";
-import "prismjs/components/prism-typescript";
-import "prismjs/components/prism-sql";
-import "prismjs/components/prism-python";
-import "prismjs/components/prism-bash";
-import "prismjs/components/prism-json";
+
+// Dynamic Prism loader to ensure global window.Prism is set BEFORE language extensions load
+let prismLoadedPromise: Promise<unknown> | null = null;
+
+function loadPrism(): Promise<unknown> {
+  if (prismLoadedPromise) return prismLoadedPromise;
+
+  prismLoadedPromise = (async () => {
+    const PrismModule = await import("prismjs");
+    // Handle both ESM default export and CJS module exports
+    const PrismObj = PrismModule.default || PrismModule;
+    
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).Prism = PrismObj;
+    }
+
+    // Dynamically import language extensions sequentially so window.Prism is guaranteed to exist
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-markup");
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-css");
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-javascript");
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-typescript");
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-sql");
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-python");
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-bash");
+    // @ts-expect-error - untyped Prism components
+    await import("prismjs/components/prism-json");
+    
+    return PrismObj;
+  })();
+
+  return prismLoadedPromise;
+}
 
 function parseMarkdownToHtml(markdown: string): string {
   if (!markdown) return "";
@@ -87,12 +117,29 @@ export default function Markdown({
 }) {
   const html = useMemo(() => parseMarkdownToHtml(content ?? ""), [content]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [prismLoaded, setPrismLoaded] = useState(false);
 
   useEffect(() => {
-    if (containerRef.current) {
-      Prism.highlightAllUnder(containerRef.current);
+    let active = true;
+    loadPrism().then(() => {
+      if (active) {
+        setPrismLoaded(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (containerRef.current && prismLoaded) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const globalPrism = (window as any).Prism;
+      if (globalPrism && typeof globalPrism.highlightAllUnder === "function") {
+        globalPrism.highlightAllUnder(containerRef.current);
+      }
     }
-  }, [html]);
+  }, [html, prismLoaded]);
 
   return (
     <div
