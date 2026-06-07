@@ -19,6 +19,26 @@ function QrScannerView({
   const [ready, setReady] = useState(false);
   const scannerRef = useRef<Html5QrcodeType | null>(null);
 
+  // Zoom capability states
+  const [zoomSupported, setZoomSupported] = useState(false);
+  const [minZoom, setMinZoom] = useState(1);
+  const [maxZoom, setMaxZoom] = useState(1);
+  const [currentZoom, setCurrentZoom] = useState(1);
+
+  const handleZoomChange = async (val: number) => {
+    setCurrentZoom(val);
+    if (scannerRef.current && zoomSupported) {
+      try {
+        await scannerRef.current.applyVideoConstraints({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          advanced: [{ zoom: val } as any]
+        });
+      } catch (err) {
+        console.error("Failed to apply zoom:", err);
+      }
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -55,7 +75,24 @@ function QrScannerView({
           () => { /* frame errors — ignore */ },
         );
 
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setReady(true);
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const capabilities = typeof (scanner as any).getRunningTrackCapabilities === "function"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              ? (scanner as any).getRunningTrackCapabilities()
+              : null;
+            if (capabilities && capabilities.zoom) {
+              setZoomSupported(true);
+              setMinZoom(Number(capabilities.zoom.min) || 1);
+              setMaxZoom(Number(capabilities.zoom.max) || 1);
+              setCurrentZoom(Number(capabilities.zoom.min) || 1);
+            }
+          } catch (e) {
+            console.warn("Failed to get running track capabilities:", e);
+          }
+        }
       } catch (err) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
@@ -112,6 +149,52 @@ function QrScannerView({
         {/* html5-qrcode mounts the video feed into this div */}
         <div id={SCANNER_ID} className="w-full" style={{ minHeight: "260px" }} />
       </div>
+
+      {zoomSupported && (
+        <div className="w-full max-w-sm px-4 py-3 bg-slate-900/90 text-white rounded-xl backdrop-blur-md border border-slate-700/50 shadow-lg flex flex-col gap-3">
+          <div className="flex items-center justify-between text-xs font-semibold tracking-wider text-slate-300 uppercase">
+            <span>Camera Zoom</span>
+            <span className="font-mono bg-brand-600/70 px-2 py-0.5 rounded text-white">{currentZoom.toFixed(1)}x</span>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400 font-medium">{minZoom.toFixed(0)}x</span>
+            <input
+              type="range"
+              min={minZoom}
+              max={maxZoom}
+              step={(maxZoom - minZoom) / 20 || 0.1}
+              value={currentZoom}
+              onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
+              className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-500 focus:outline-none"
+            />
+            <span className="text-xs text-slate-400 font-medium">{maxZoom.toFixed(0)}x</span>
+          </div>
+
+          <div className="flex justify-center gap-2">
+            {[1, 2, 4, 8].map((zoomVal) => {
+              if (zoomVal >= minZoom && zoomVal <= maxZoom) {
+                return (
+                  <button
+                    key={zoomVal}
+                    type="button"
+                    onClick={() => handleZoomChange(zoomVal)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 ${
+                      Math.abs(currentZoom - zoomVal) < 0.1
+                        ? "bg-brand-600 text-white shadow-md shadow-brand-500/20 scale-105"
+                        : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                    }`}
+                  >
+                    {zoomVal}x
+                  </button>
+                );
+              }
+              return null;
+            })}
+          </div>
+        </div>
+      )}
+
       <p className="flex items-center gap-2 text-sm font-semibold text-brand-700">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
@@ -246,6 +329,8 @@ export default function DashboardHome() {
 
   // ── QR Scanner state ──────────────────────────────────────────────────────
   const [showScanner, setShowScanner] = useState(false);
+  const [fileScanning, setFileScanning] = useState(false);
+  const [fileScanError, setFileScanError] = useState<string | null>(null);
 
   function handleScan(text: string) {
     let sessionCode = text.trim();
@@ -257,6 +342,31 @@ export default function DashboardHome() {
     }
     setShowScanner(false);
     navigate(`/dashboard/session/${sessionCode}`);
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    setFileScanning(true);
+    setFileScanError(null);
+    
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const tempScanner = new Html5Qrcode("hidden-qr-reader");
+      
+      const decodedText = await tempScanner.scanFile(file, false);
+      handleScan(decodedText);
+    } catch (err) {
+      console.error("Failed to scan QR from file:", err);
+      setFileScanError(
+        "Could not detect a QR code in this image. Please make sure the QR code is centered, well-lit, and in focus, then try again."
+      );
+    } finally {
+      setFileScanning(false);
+      // Reset input value to allow uploading the same file if needed
+      e.target.value = "";
+    }
   }
 
   function goToLobby() {
@@ -356,33 +466,82 @@ export default function DashboardHome() {
             <div>
               <h2 className="text-xl font-extrabold text-ink">Scan QR Code to Join</h2>
               <p className="mt-1 text-sm text-muted">
-                Ask the host to show their QR code. Point your camera at it to jump straight into their lobby instantly.
+                Ask the host to show their QR code. Point your camera at it, or upload/take a photo to join instantly.
               </p>
             </div>
           </div>
-          {!showScanner ? (
-            <button
-              type="button"
-              id="start-qr-scanner-btn"
-              onClick={() => setShowScanner(true)}
-              className="flex-none inline-flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-brand-700 hover:shadow-lg active:scale-95"
+          
+          <div className="flex flex-wrap gap-3">
+            {!showScanner ? (
+              <button
+                type="button"
+                id="start-qr-scanner-btn"
+                onClick={() => setShowScanner(true)}
+                className="flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-brand-700 hover:shadow-lg active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                  <path d="M3 3h7v7H3zm0 11h7v7H3zm11-11h7v7h-7zm3 3h1v1h-1zm-3 8h2v2h-2zm2 2h2v2h-2zm-2 2h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2zm-2-2h2v2h-2z"/>
+                </svg>
+                Live Camera
+              </button>
+            ) : (
+              <button
+                type="button"
+                id="stop-qr-scanner-btn"
+                onClick={() => setShowScanner(false)}
+                className="flex-none inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600"
+              >
+                ✕ Close Camera
+              </button>
+            )}
+
+            <label
+              htmlFor="qr-file-input"
+              className="flex-none inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-6 py-3 text-sm font-bold text-ink shadow-sm transition hover:bg-surface-soft hover:shadow-md active:scale-95 cursor-pointer"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
-                <path d="M3 3h7v7H3zm0 11h7v7H3zm11-11h7v7h-7zm3 3h1v1h-1zm-3 8h2v2h-2zm2 2h2v2h-2zm-2 2h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2zm-2-2h2v2h-2z"/>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
               </svg>
-              Open Camera Scanner
-            </button>
-          ) : (
+              Upload / Take Photo
+            </label>
+            <input
+              type="file"
+              id="qr-file-input"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+        </div>
+
+        {/* Loading state for file scanning */}
+        {fileScanning && (
+          <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-6 text-center">
+            <span className="relative flex h-10 w-10 items-center justify-center">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+              <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white font-bold text-xs">
+                ⏳
+              </span>
+            </span>
+            <p className="text-sm font-semibold text-brand-700 animate-pulse">Scanning image for QR code… Please wait.</p>
+          </div>
+        )}
+
+        {/* Error state for file scanning */}
+        {fileScanError && (
+          <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+            <span className="text-3xl">⚠️</span>
+            <p className="text-sm font-semibold text-rose-600">{fileScanError}</p>
             <button
               type="button"
-              id="stop-qr-scanner-btn"
-              onClick={() => setShowScanner(false)}
-              className="flex-none inline-flex items-center gap-2 rounded-xl border border-line bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600"
+              onClick={() => setFileScanError(null)}
+              className="rounded-full bg-rose-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-rose-700"
             >
-              ✕ Close Scanner
+              Dismiss
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Mount/unmount the scanner — html5-qrcode starts/stops camera via useEffect */}
         {showScanner && (
@@ -392,6 +551,9 @@ export default function DashboardHome() {
           />
         )}
       </section>
+
+      {/* Hidden element for html5-qrcode to scan uploaded images */}
+      <div id="hidden-qr-reader" className="hidden" />
 
       <section className="rounded-2xl border border-line bg-surface-soft p-7 md:p-8">
         <div className="flex items-end justify-between gap-6">
