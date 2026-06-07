@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCreateGuest, useCreateQuestion, useCreateRoom } from "../../query/queries";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
+import Markdown from "../../components/Markdown";
 
 type QuestionDraft = {
   id: string;
@@ -77,6 +78,53 @@ export default function CreateSession() {
   function removeQuestion(questionId: string) {
     setQuestions((prev) => prev.filter((q) => q.id !== questionId));
   }
+
+  // Tab key indent handler for textareas and inputs (inserts 4 spaces)
+  const handleKeyDownIndent = (
+    e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>,
+    questionId: string,
+    field: "text" | "explanation"
+  ) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const el = e.currentTarget;
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? 0;
+      const val = el.value;
+      const spaces = "    ";
+      const newVal = val.substring(0, start) + spaces + val.substring(end);
+      
+      updateQuestion(questionId, { [field]: newVal });
+      
+      // Restore cursor position
+      setTimeout(() => {
+        el.selectionStart = el.selectionEnd = start + spaces.length;
+      }, 0);
+    }
+  };
+
+  const handleOptionKeyDownIndent = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+    questionId: string,
+    optionId: string
+  ) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const el = e.currentTarget;
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? 0;
+      const val = el.value;
+      const spaces = "    ";
+      const newVal = val.substring(0, start) + spaces + val.substring(end);
+      
+      updateOption(questionId, optionId, { text: newVal });
+      
+      // Restore cursor position
+      setTimeout(() => {
+        el.selectionStart = el.selectionEnd = start + spaces.length;
+      }, 0);
+    }
+  };
 
   const isCreating =
     createGuestMutation.isPending ||
@@ -203,9 +251,23 @@ export default function CreateSession() {
                   <textarea
                     value={q.text}
                     onChange={(e) => updateQuestion(q.id, { text: e.target.value })}
-                    placeholder="Type your question"
+                    onKeyDown={(e) => handleKeyDownIndent(e, q.id, "text")}
+                    placeholder="Type your question (Markdown supported, e.g. **bold**, `code`, ```code block```)"
                     className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-brand-300 focus:ring-4 focus:ring-brand-100"
+                    rows={3}
                   />
+                  {q.text.trim() && (
+                    <div className="mt-2 rounded-xl border border-dashed border-brand-200 bg-brand-50/30 p-4 min-w-0">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 mb-2">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-500" />
+                        </span>
+                        Live Preview
+                      </div>
+                      <Markdown content={q.text} className="text-sm text-ink leading-relaxed" />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -213,9 +275,22 @@ export default function CreateSession() {
                   <input
                     value={q.explanation}
                     onChange={(e) => updateQuestion(q.id, { explanation: e.target.value })}
-                    placeholder="Explain the correct answer"
+                    onKeyDown={(e) => handleKeyDownIndent(e, q.id, "explanation")}
+                    placeholder="Explain the correct answer (Markdown supported)"
                     className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-brand-300 focus:ring-4 focus:ring-brand-100"
                   />
+                  {q.explanation.trim() && (
+                    <div className="mt-2 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/20 p-4 min-w-0">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-2">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        </span>
+                        Explanation Preview
+                      </div>
+                      <Markdown content={q.explanation} className="text-sm text-ink leading-relaxed" />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -232,24 +307,35 @@ export default function CreateSession() {
                 <div className="grid gap-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted">Options</p>
                   {q.options.map((option, optionIndex) => (
-                    <label
+                    <div
                       key={option.id}
-                      className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white px-4 py-3"
+                      className="flex flex-col gap-2 rounded-xl border border-line bg-white p-4"
                     >
-                      <input
-                        type="radio"
-                        name={`correct-${q.id}`}
-                        checked={option.isCorrect}
-                        onChange={() => setCorrectOption(q.id, option.id)}
-                      />
-                      <span className="text-xs font-semibold text-muted">Option {optionIndex + 1}</span>
-                      <input
-                        value={option.text}
-                        onChange={(e) => updateOption(q.id, option.id, { text: e.target.value })}
-                        placeholder="Answer option"
-                        className="min-w-[200px] flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-ink outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
-                      />
-                    </label>
+                      <label className="flex flex-wrap items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`correct-${q.id}`}
+                          checked={option.isCorrect}
+                          onChange={() => setCorrectOption(q.id, option.id)}
+                          className="cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold text-muted">Option {optionIndex + 1}</span>
+                        <textarea
+                          value={option.text}
+                          onChange={(e) => updateOption(q.id, option.id, { text: e.target.value })}
+                          onKeyDown={(e) => handleOptionKeyDownIndent(e, q.id, option.id)}
+                          placeholder="Answer option (Markdown supported)"
+                          className="min-w-[200px] flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-ink outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100 resize-y"
+                          rows={1}
+                        />
+                      </label>
+                      {option.text.trim() && (/[*`_]/.test(option.text)) && (
+                        <div className="pl-7 text-xs flex items-center gap-2 text-muted border-t border-slate-50 pt-2">
+                          <span className="font-bold text-[9px] uppercase tracking-wider text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">Preview:</span>
+                          <Markdown content={option.text} className="inline-block text-ink font-semibold" />
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import type { ExamQuestion, QuestionPhase } from "../../../types/exam";
 import { QUESTION_TIME_SECONDS } from "../../../types/exam";
+import Markdown from "../../../components/Markdown";
 
 const OPTION_LETTERS = ["A", "B", "C", "D"];
 
@@ -141,8 +142,8 @@ function OptionList({
               >
                 {OPTION_LETTERS[index]}
               </span>
-              <span className="flex-1 text-sm font-semibold leading-snug text-ink sm:text-base">
-                {option.text}
+              <span className="flex-1 text-sm font-semibold leading-snug text-ink sm:text-base min-w-0">
+                <Markdown content={option.text} />
               </span>
               {showCorrect ? (
                 <span className="quiz-check-pop flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
@@ -194,9 +195,9 @@ function ExplanationBlock({ explanation, visible }: { explanation?: string; visi
         >
           💡
         </span>
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-wide text-brand-700">Explanation</p>
-          <p className="mt-1 text-sm leading-relaxed text-ink">{explanation}</p>
+          <Markdown content={explanation} className="mt-1 text-sm leading-relaxed text-ink" />
         </div>
       </div>
     </div>
@@ -368,8 +369,8 @@ export default function ExamPlayer({
         </div>
       </div>
 
-      <article key={question.id} className="product-frame mt-6 flex-1 p-6 sm:p-8 quiz-question-enter">
-        <h2 className="text-xl font-extrabold leading-snug text-ink sm:text-2xl">{question.text}</h2>
+      <article key={question.id} className="product-frame mt-6 flex-1 p-6 sm:p-8 quiz-question-enter flex flex-col gap-5 min-w-0">
+        <Markdown content={question.text} className="text-xl font-extrabold leading-snug text-ink sm:text-2xl" />
 
         <OptionList
           question={question}
