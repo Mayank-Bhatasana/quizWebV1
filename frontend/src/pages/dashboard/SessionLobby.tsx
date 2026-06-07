@@ -124,6 +124,20 @@ export default function SessionLobby() {
   const [status, setStatus] = useState<"connecting" | "connected" | "error" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [customDuration, setCustomDuration] = useState<number | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // ── Escape key listener for QR full screen modal ──────────────────────────
+  useEffect(() => {
+    if (!isQrModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsQrModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isQrModalOpen]);
 
   // WS-driven participant list
   const [participants, setParticipants] = useState<WsParticipant[]>([]);
@@ -359,7 +373,6 @@ export default function SessionLobby() {
 
   // ── QR join URL ───────────────────────────────────────────────────────────
   const joinUrl = `${window.location.origin}/dashboard/session/${code}`;
-  const [linkCopied, setLinkCopied] = useState(false);
 
   function copyJoinLink() {
     navigator.clipboard?.writeText(joinUrl).then(() => {
@@ -409,7 +422,7 @@ export default function SessionLobby() {
         {/* Host QR Code Panel */}
         {isHost && (
           <div className="mt-8 flex flex-col gap-6 rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-indigo-50 p-6 sm:flex-row sm:items-center">
-            {/* QR Code */}
+            {/* QR Code container */}
             <div className="flex flex-col items-center gap-3 flex-none">
               <div className="rounded-2xl border-2 border-brand-200 bg-white p-4 shadow-md">
                 <QRCodeSVG
@@ -426,9 +439,16 @@ export default function SessionLobby() {
                   }}
                 />
               </div>
-              <span className="rounded-full bg-brand-100 border border-brand-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-700">
-                Scan to Join
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsQrModalOpen(true)}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 hover:bg-brand-100 px-4 py-2.5 text-xs font-bold text-brand-700 transition duration-200 active:scale-95 cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="size-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+                </svg>
+                Full Screen
+              </button>
             </div>
 
             {/* Info + copy */}
@@ -443,7 +463,7 @@ export default function SessionLobby() {
                 <button
                   type="button"
                   onClick={copyJoinLink}
-                  className="flex-none rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95"
+                  className="flex-none rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95 cursor-pointer"
                 >
                   {linkCopied ? "Copied ✓" : "Copy Link"}
                 </button>
@@ -607,6 +627,85 @@ export default function SessionLobby() {
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── QR Code Full Screen Modal ── */}
+      {isQrModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-modal-fade-in cursor-pointer"
+          onClick={() => setIsQrModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-line bg-white p-8 shadow-2xl animate-modal-scale-up flex flex-col items-center gap-6 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setIsQrModalOpen(false)}
+              className="absolute right-5 top-5 rounded-full p-2 text-muted hover:bg-surface-soft hover:text-ink transition active:scale-90 cursor-pointer"
+              aria-label="Close modal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="size-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="text-center mt-2">
+              <h3 className="text-2xl font-black text-ink">Scan QR Code to Join</h3>
+              <p className="mt-2 text-sm text-muted">
+                Point your camera at the screen to jump into this lobby instantly.
+              </p>
+            </div>
+
+            {/* Giant QR Code */}
+            <div className="rounded-3xl border-4 border-brand-200 bg-white p-6 shadow-xl max-w-full">
+              <QRCodeSVG
+                value={joinUrl}
+                size={280}
+                bgColor="#ffffff"
+                fgColor="#1e1b4b"
+                level="H"
+                imageSettings={{
+                  src: logo,
+                  height: 54,
+                  width: 54,
+                  excavate: true,
+                }}
+              />
+            </div>
+
+            {/* Code / Link Information */}
+            <div className="w-full flex flex-col gap-3 text-center bg-slate-50 border border-slate-100 p-5 rounded-2xl">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Session Code</p>
+                <p className="text-4xl font-black tracking-widest text-brand-600 mt-1 select-all">{code}</p>
+              </div>
+              
+              <div className="border-t border-slate-200/60 pt-3 flex flex-col items-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Join Link</p>
+                <div className="mt-1 flex items-center gap-2 max-w-full">
+                  <span className="truncate text-xs font-mono font-semibold text-ink select-all">{joinUrl}</span>
+                  <button
+                    type="button"
+                    onClick={copyJoinLink}
+                    className="flex-none rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95 cursor-pointer"
+                  >
+                    {linkCopied ? "Copied ✓" : "Copy Link"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsQrModalOpen(false)}
+              className="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition duration-200 active:scale-[0.98] cursor-pointer"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

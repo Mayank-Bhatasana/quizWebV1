@@ -200,7 +200,7 @@ export default function CreateSession() {
               <div className="mt-4 grid gap-4">
                 <div>
                   <label className="text-xs font-semibold text-muted">Question text</label>
-                  <input
+                  <textarea
                     value={q.text}
                     onChange={(e) => updateQuestion(q.id, { text: e.target.value })}
                     placeholder="Type your question"
