@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
+import logo from "../../assets/logo.svg";
 import { useTempUser } from "../../hooks/useTempUser";
 import { createTempUser, getTempUser, setTempUser, updateTempUser } from "../../utils/tempUser";
 import { useCreateGuest, useJoinRoom, useRoomDetails, useStartRoom } from "../../query/queries";
@@ -343,17 +345,28 @@ export default function SessionLobby() {
     isConnecting || status === "connecting"
       ? "Connecting…"
       : status === "connected"
-      ? "Connected ✓"
-      : status === "error"
-      ? "Error"
-      : "Waiting";
+        ? "Connected ✓"
+        : status === "error"
+          ? "Error"
+          : "Waiting";
 
   const statusColor =
     status === "connected"
       ? "text-emerald-600"
       : status === "error"
-      ? "text-rose-500"
-      : "text-ink";
+        ? "text-rose-500"
+        : "text-ink";
+
+  // ── QR join URL ───────────────────────────────────────────────────────────
+  const joinUrl = `${window.location.origin}/dashboard/session/${code}`;
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  function copyJoinLink() {
+    navigator.clipboard?.writeText(joinUrl).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -368,7 +381,7 @@ export default function SessionLobby() {
               <p className="mt-2 text-sm font-semibold text-rose-500">{error}</p>
             ) : (
               <p className="mt-2 text-sm text-muted">
-                Waiting for the host to start the quiz.
+                {isHost ? "Share the QR code or session code for players to join." : "Waiting for the host to start the quiz."}
               </p>
             )}
           </div>
@@ -382,7 +395,7 @@ export default function SessionLobby() {
               onClick={copyCode}
               className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-soft"
             >
-              Copy
+              Copy Code
             </button>
             <Link
               to="/dashboard"
@@ -392,6 +405,59 @@ export default function SessionLobby() {
             </Link>
           </div>
         </div>
+
+        {/* Host QR Code Panel */}
+        {isHost && (
+          <div className="mt-8 flex flex-col gap-6 rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-indigo-50 p-6 sm:flex-row sm:items-center">
+            {/* QR Code */}
+            <div className="flex flex-col items-center gap-3 flex-none">
+              <div className="rounded-2xl border-2 border-brand-200 bg-white p-4 shadow-md">
+                <QRCodeSVG
+                  value={joinUrl}
+                  size={160}
+                  bgColor="#ffffff"
+                  fgColor="#1e1b4b"
+                  level="H"
+                  imageSettings={{
+                    src: logo,
+                    height: 36,
+                    width: 36,
+                    excavate: true,
+                  }}
+                />
+              </div>
+              <span className="rounded-full bg-brand-100 border border-brand-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-700">
+                Scan to Join
+              </span>
+            </div>
+
+            {/* Info + copy */}
+            <div className="flex flex-1 flex-col gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-brand-600">🎯 Join this session</p>
+                <p className="mt-1 text-lg font-extrabold text-ink">Players can scan the QR code with their phone camera to jump straight into the lobby.</p>
+                <p className="mt-2 text-sm text-muted">Or share the direct link below:</p>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-brand-200 bg-white/70 px-4 py-3 backdrop-blur-sm">
+                <span className="flex-1 truncate text-xs font-mono font-semibold text-ink">{joinUrl}</span>
+                <button
+                  type="button"
+                  onClick={copyJoinLink}
+                  className="flex-none rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95"
+                >
+                  {linkCopied ? "Copied ✓" : "Copy Link"}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Lobby is live — players can join right now
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats row */}
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
